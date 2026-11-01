@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1a1a2e">
+<title>Monster Shot</title>
+<link rel="stylesheet" href="style.css?v=0.1.5">
+<script src="https://cdn.jsdelivr.net/npm/@vkontakte/vk-bridge@2/dist/browser.min.js"></script>
+<style>
+    #preloader { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #1a1a2e; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999; transition: opacity 0.3s; }
+    .spinner { width: 50px; height: 50px; border: 5px solid rgba(0, 255, 136, 0.3); border-top-color: #00ff88; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+ <!-- Yandex.Metrika counter -->
+    <script type="text/javascript" >
+       (function(m,e,t,r,i,k,a){m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
+       m[i].l=1*new Date();
+       for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
+       k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)})
+       (window, document, "script", "https://mc.yandex.ru/metrika/tag.js", "ym");
+       ym(113796779, "init", { clickmap:true, trackLinks:true, accurateTrackBounce:true, webvisor:true });
+    </script>
+    <noscript><div><img src="https://mc.yandex.ru/watch/113796779" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
+    <!-- /Yandex.Metrika counter -->
+</head>
+<body>
+
+<!-- Экран "Вы готовы?" -->
+<div id="ready-screen">
+    <h2 style="color: #fff; font-size: 36px; margin-bottom: 40px; letter-spacing: 2px; text-shadow: 0 0 20px rgba(255,255,255,0.5);">ВЫ ГОТОВЫ?</h2>
+    <div style="display: flex; gap: 20px;">
+        <button id="btn-ready-green" class="btn-ready-green">ДА</button>
+        <button id="btn-ready-red" class="btn-ready-red">ДА</button>
+    </div>
+</div>
+
+<!-- Фоновая музыка -->
+<audio id="bgm-menu" src="audio/menu.ogg" loop></audio>
+<audio id="bgm-battle" src="audio/battle.ogg" loop></audio>
+<audio id="bgm-synthwave" src="audio/synthwave.ogg" loop></audio>
+<audio id="bgm-dark" src="audio/dark_electro.ogg" loop></audio>
+<audio id="bgm-shop" src="audio/shop.ogg" loop></audio>
+<audio id="bgm-boss" src="audio/boss.ogg" loop></audio>
+<audio id="bgm-survival" src="audio/survival.ogg" loop></audio>
+<audio id="bgm-win" src="audio/win.ogg"></audio>
+
+<div id="preloader">
+    <div class="spinner"></div>
+    <div style="color: #00ff88; font-weight: bold; letter-spacing: 2px;">ЗАГРУЗКА...</div>
+</div>
+
+<!-- Экран заставки -->
+<div id="splash-screen">
+    <div id="splash-flash"></div>
+    <div id="splash-royal" class="splash-text">Royal Engine представляет</div>
+    <div id="splash-title" class="hidden" style="color: #00ff88; font-size: 52px; text-shadow: 0 0 30px #00ff88; letter-spacing: 6px;">MONSTER SHOT</div>
+</div>
+
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+    <div id="loading-screen" class="overlay hidden" style="z-index: 9999; background: rgba(15, 15, 30, 0.95);">
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%;">
+            <div class="spinner" style="width: 60px; height: 60px; border: 6px solid rgba(0, 255, 136, 0.2); border-top-color: #00ff88; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+            <div style="color: #00ff88; font-weight: bold; letter-spacing: 3px; margin-top: 25px; font-size: 20px;">ЗАГРУЗКА УРОВНЯ...</div>
+        </div>
+    </div>
+
+    <div id="hud">
+        <div class="hud-item" id="hp-item"><span class="hud-label">❤ HP</span><span id="hp-value">100</span></div>
+        <div class="hud-item" id="ammo-item"><span class="hud-label">🔫 Патроны</span><span id="ammo-value">15</span></div>
+        <div class="hud-item" id="mines-item"><span class="hud-label">💣 Мины</span><span id="mines-value">0</span></div>
+        <div class="hud-item" id="weapon-item"><span class="hud-label">🔫 Оружие</span><span id="weapon-value">Пистолет</span></div>
+        <div class="hud-item" id="coins-item"><span class="hud-label">💰 Монеты</span><span id="coins-value">0</span></div>
+        <div class="hud-item" id="hud-xp" style="display: none;"><span class="hud-label">⭐ Опыт</span><span id="xp-value">0 / 1000</span></div>
+        <div class="hud-item" id="level-item"><span class="hud-label">🎯 Уровень</span><span id="level-value">1</span></div>
+    </div>
+
+    <div id="wave-modifier-banner" class="hidden">
+        <span id="wave-mod-icon">🩸</span>
+        <div style="display:flex;flex-direction:column;align-items:flex-start;">
+            <span id="wave-mod-name">МОДИФИКАТОР</span>
+            <span id="wave-mod-desc">описание</span>
+        </div>
+    </div>
+
+    <div id="sound-btn" title="Вкл/выкл звук">🔊</div>
+	<!-- НОВОЕ РАСПОЛОЖЕНИЕ ЧИПОВ И КНОПКА ТЕРМИНАЛА -->
+    <div id="chips-ui-container">
+        <div id="chips-display">
+            <img src="icon/chip.png" alt="Чип" style="height: 24px;" onerror="this.style.display='none'">
+            <span id="chips-value">0</span>
+        </div>
+        <button id="btn-open-terminal">ТЕРМИНАЛ</button>
+    </div>
+    <div id="crosshair"></div>
+
+    <div id="joystick-container" class="hidden"><div id="joystick-base"><div id="joystick-stick"></div></div></div>
+    <div id="shoot-joystick-container" class="hidden"><div id="shoot-joystick-base"><div id="shoot-joystick-stick"></div></div></div>
+
+    <button id="inv-btn-mobile" class="hidden" aria-label="Инвентарь">🎒</button>
+    <button id="menu-btn-mobile" class="hidden" aria-label="Пауза">⏸️</button>
+
+    <div id="tutorial-hint" class="hidden">Нажми W, A, S или D</div>
+    
+    <div id="tutorial-overlay" class="hidden">
+        <div id="tutorial-dark"></div>
+        <div id="tutorial-spotlight"></div>
+        <div id="tutorial-pointer">▼</div>
+        <div id="tutorial-box">
+            <div id="tutorial-keyhint" class="hidden">W</div>
+            <div id="tutorial-step-title">ЗАГОЛОВОК</div>
+            <div id="tutorial-step-text">Текст</div>
+            <div id="tutorial-controls">
+                <button id="tutorial-next-btn" class="btn-primary">ДАЛЕЕ</button>
+                <button id="tutorial-skip-btn" class="btn-secondary">ПРОПУСТИТЬ</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="inventory-panel" class="hidden">
+        <h3>Инвентарь</h3>
+        <div id="inventory-items">Пусто</div>
+        <p class="hint">ЛКМ по предмету — использовать · E — закрыть</p>
+    </div>
+
+    <div id="menu" class="overlay">
+        <div class="overlay-box">
+            <h1>MONSTER SHOT</h1>
+            <p class="subtitle">Шутер с видом сверху</p>
+            <div style="display: inline-block; background: rgba(255,255,255,0.1); padding: 5px 10px; border-radius: 5px; margin-bottom: 15px; font-size: 14px; color: #aaa;">12+</div>
+            <div style="display: inline-block; background: rgba(255,255,255,0.1); padding: 5px 10px; border-radius: 5px; margin-bottom: 15px; margin-left: 6px; font-size: 14px; color: #aaa;">v<span id="game-version">0.1.5</span></div>
+            <div class="controls" style="margin-bottom: 25px;">
+                <p><b>WASD</b> — движение · <b>ЛКМ</b> — стрельба</p>
+                <p><b>E</b> — инвентарь · <b>ESC</b> — пауза</p>
+            </div>
+            <div class="menu-btn-col">
+                <button id="btn-continue" class="btn-primary">ПРОДОЛЖИТЬ</button>
+                <button id="btn-new-game" class="btn-secondary">НОВАЯ ИГРА</button>
+                <button id="btn-tutorial" class="btn-secondary">ПРОЙТИ ОБУЧЕНИЕ</button>
+                <button id="btn-leaderboard" class="btn-secondary" style="font-size: 14px; padding: 10px 20px; margin-top: 10px;">🏆 РЕКОРДЫ КАМПАНИИ</button>
+                <button id="btn-survival-records" class="btn-secondary" style="font-size: 14px; padding: 10px 20px; margin-top: 10px;">🏆 РЕКОРДЫ ВЫЖИВАНИЯ</button>
+                <button id="btn-support" class="btn-secondary" style="font-size: 14px; padding: 10px 20px; margin-top: 10px;">🛟 ПОДДЕРЖКА</button>
+                <button id="btn-devs" class="btn-secondary" style="font-size: 14px; padding: 10px 20px; margin-top: 10px;">РАЗРАБОТЧИКИ</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="new-game-menu" class="overlay hidden">
+        <div class="overlay-box">
+            <h1 style="font-size: 40px;">РЕЖИМ ИГРЫ</h1>
+            <div class="menu-btn-col" style="margin-top: 20px;">
+                <button id="btn-campaign" class="btn-primary">ОСНОВНАЯ</button>
+                <button id="btn-survival" class="btn-secondary">ВЫЖИВАНИЕ</button>
+                <button id="btn-back-to-menu" class="btn-secondary" style="margin-top: 10px; font-size: 14px; padding: 10px 20px;">НАЗАД</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="survival-levelup" class="overlay hidden">
+        <div class="overlay-box shop-box">
+            <h1 style="font-size: 36px;">ПОВЫШЕНИЕ УРОВНЯ!</h1>
+            <p class="shop-coins" style="margin-bottom: 10px;">Выберите улучшение</p>
+            <div id="levelup-cards" class="cards-container"></div>
+            <div class="btn-row" style="margin-top: 20px;">
+                <button id="levelup-ad-btn" class="btn-secondary" style="background: linear-gradient(135deg, #ff8800, #cc5500);">📺 ЕЩЁ ОДНО (РЕКЛАМА)</button>
+                <button id="levelup-continue-btn" class="btn-primary">ПРОДОЛЖИТЬ</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="survival-records-modal" class="overlay hidden" style="z-index: 200;">
+        <div class="overlay-box" style="border-color: #ffcc00;">
+            <h1 style="color: #ffcc00; font-size: 42px;">🏆 РЕКОРДЫ</h1>
+            <p style="color:#aaa; margin-bottom: 20px;">Твои лучшие результаты в режиме выживания</p>
+            <div id="survival-records-content" style="margin: 20px 0 25px 0; font-size: 22px; line-height: 2; color: #fff;">
+                <div>🌊 Лучшая волна: <b id="rec-wave" style="color:#44ddff;">0</b></div>
+                <div>⭐ Лучший счёт: <b id="rec-score" style="color:#ffcc00;">0</b></div>
+            </div>
+            <div class="btn-row">
+                <button id="btn-survival-leaderboard" class="btn-primary" style="background: linear-gradient(135deg, #ffcc00, #aa8800); color: #000;">VK ЛИДЕРБОРД</button>
+                <button id="btn-close-records" class="btn-secondary">ЗАКРЫТЬ</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="devs-modal" class="overlay hidden" style="z-index: 200;">
+        <div class="overlay-box">
+            <img src="logo.png" alt="Royal Engine" class="dev-logo" onerror="this.style.display='none'">
+            <h1 style="font-size: 36px;">РАЗРАБОТЧИКИ</h1>
+            <div style="margin: 20px 0; font-size: 18px; line-height: 1.6;">
+                <div>Игра создана: <b>Royal Engine</b></div>
+                <div>Программирование, дизайн, графика: <b>Безруков Евгений</b></div>
+                <div style="display: flex; align-items: center; justify-content: center; gap: 8px;">
+                    Звуки: Web Audio API 
+                    <a href="https://zvukbox.ru/" target="_blank" style="display: inline-flex; align-items: center; text-decoration: none;">
+                        <img src="icon/zvukbox.png" alt="ZvukBox" style="height: 22px; border-radius: 4px;">
+                    </a>
+                </div>
+                <div style="margin-top: 15px;">
+                    Музыка: 
+                    <a href="https://song-ai.io/" target="_blank" style="display: inline-flex; align-items: center; text-decoration: none;">
+                        <img src="icon/song_ai.png" alt="Song AI" style="height: 24px; margin-left: 8px; border-radius: 4px; box-shadow: 0 0 10px rgba(68, 221, 255, 0.5);">
+                    </a>
+                </div>
+            </div>
+            <p style="color: #666; font-size: 14px; margin-bottom: 15px;">Версия: <span id="devs-version">0.1.5</span></p>
+            <p style="color: #aaa; margin-bottom: 20px;">Спасибо за игру!</p>
+            <button id="btn-close-devs" class="btn-primary">ЗАКРЫТЬ</button>
+        </div>
+    </div>
+
+    <div id="level-complete" class="overlay hidden">
+        <div class="overlay-box">
+            <h1>УРОВЕНЬ ПРОЙДЕН!</h1>
+            <p id="level-stats"></p>
+            <div class="btn-row">
+                <button id="shop-open-btn" class="btn-primary">В МАГАЗИН</button>
+                <button id="menu-from-level-btn" class="btn-secondary">В МЕНЮ</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="shop" class="overlay hidden">
+        <div class="overlay-box shop-box">
+            <h1>МАГАЗИН</h1>
+            <p class="shop-coins">💰 Монеты: <span id="shop-coins-value">0</span></p>
+            <div id="shop-items"></div>
+            <div class="btn-row"><button id="shop-next-btn" class="btn-primary">НА СЛЕДУЮЩИЙ УРОВЕНЬ</button></div>
+        </div>
+    </div>
+
+    <div id="pause" class="overlay hidden">
+        <div class="overlay-box pause-box">
+            <h1>ПАУЗА</h1>
+            <div id="pause-stats">
+                <div class="stat-row"><span>🔫 Урон:</span> <span id="stat-damage">0</span></div>
+                <div class="stat-row"><span>❤ Макс. ХП:</span> <span id="stat-hp">0</span></div>
+                <div class="stat-row"><span>⚡ Скорость:</span> <span id="stat-speed">0</span></div>
+            </div>
+            <div class="btn-row" style="margin-top: 20px;"><button id="pause-resume-btn" class="btn-primary">ПРОДОЛЖИТЬ</button></div>
+            <div class="btn-row">
+                <button id="pause-restart-btn" class="btn-secondary">ЗАНОВО</button>
+                <button id="pause-menu-btn" class="btn-secondary">В МЕНЮ</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="game-over" class="overlay hidden">
+        <div class="overlay-box">
+            <h1>ВЫ ПОГИБЛИ</h1>
+            <p id="game-over-stats"></p>
+            <div class="btn-row">
+                <button id="restart-btn" class="btn-primary">ЗАНОВО</button>
+                <button id="menu-from-gameover-btn" class="btn-secondary">В МЕНЮ</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="victory" class="overlay hidden">
+        <div class="overlay-box">
+            <h1>ПОБЕДА!</h1>
+            <p>Вы победили всех монстров!</p>
+            <p id="victory-stats"></p>
+            <div class="btn-row">
+                <button id="victory-restart-btn" class="btn-primary">ЗАНОВО</button>
+                <button id="menu-from-victory-btn" class="btn-secondary">В МЕНЮ</button>
+            </div>
+        </div>
+    </div>
+	<div id="daily-bonus-modal" class="overlay hidden" style="z-index: 250;">
+        <div class="overlay-box" style="border-color: #00ff88;">
+            <h1 style="color: #00ff88; font-size: 42px;">ЕЖЕДНЕВНЫЙ БОНУС</h1>
+            <p style="color: #ccc; font-size: 20px; margin-bottom: 20px;">Вы зашли сегодня в игру!</p>
+            <div style="display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 36px; font-weight: bold; color: #00ff88; margin-bottom: 30px;">
+                <img src="icon/chip.png" style="height: 40px;" onerror="this.style.display='none'">
+                +1 ЧИП
+            </div>
+            <button id="btn-claim-daily" class="btn-primary">СПАСИБО!</button>
+        </div>
+    </div>
+    <div id="terminal-modal" class="overlay hidden" style="z-index: 250;">
+        <div class="overlay-box terminal-box">
+            <h1>ТЕРМИНАЛ</h1>
+            <p class="subtitle">Улучшения за Чипы</p>
+            
+            <div class="terminal-balance">
+                <img src="icon/chip.png" style="height: 24px;" onerror="this.style.display='none'">
+                <span id="terminal-chips-value">0</span>
+            </div>
+
+            <div class="terminal-tabs">
+                <button class="tab-btn active" data-tab="unlocks">РАЗБЛОКИРОВКИ</button>
+                <button class="tab-btn" data-tab="skins">КАСТОМИЗАЦИЯ</button>
+                <button class="tab-btn" data-tab="implants">ИМПЛАНТЫ</button>
+				<button class="tab-btn" data-tab="purchase">ПОПОЛНИТЬ</button>
+            </div>
+            
+            <div id="terminal-items" class="terminal-items-list">
+                <!-- Сюда рендерятся предметы -->
+            </div>
+
+            <div class="btn-row" style="margin-top: 20px;">
+                <button id="btn-close-terminal" class="btn-secondary">ЗАКРЫТЬ</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="js/1-config.js?v=0.1.5"></script>
+<script src="js/2-state.js?v=0.1.5"></script>
+<script src="js/3-sdk.js?v=0.1.5"></script>
+<script src="js/4-entities.js?v=0.1.5"></script>
+<script src="js/5-logic.js?v=0.1.5"></script>
+<script src="js/6-render.js?v=0.1.5"></script>
+<script src="js/7-ui.js?v=0.1.5"></script>
+<script src="js/8-main.js?v=0.1.5"></script>
+</body>
+</html>

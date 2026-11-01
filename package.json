@@ -1,0 +1,16 @@
+{
+  "name": "monster_shot_vk",
+  "version": "0.1.4",
+  "description": "Monster Shot - top-down shooter for VK Games",
+  "main": "game.js",
+  "homepage": "./",
+  "scripts": {
+    "deploy": "vk-miniapps-deploy"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@vkontakte/vk-miniapps-deploy": "^0.1.9"
+  }
+}
