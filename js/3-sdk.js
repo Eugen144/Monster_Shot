@@ -260,7 +260,6 @@ function loadGlobalChips() {
                     game.equippedSkin = data.skin;
                     updateChipsUI();
                     
-                    // Делаем локальную копию (кэш) на случай падения сервера
                     try { localStorage.setItem('ms_global_chips', game.chips); } catch(e){}
                     try { localStorage.setItem('ms_equipped_skin', game.equippedSkin); } catch(e){}
                     console.log('✅ Баланс загружен с сервера:', game.chips);
@@ -268,7 +267,6 @@ function loadGlobalChips() {
             })
             .catch(e => {
                 console.log('❌ Ошибка сервера, используем кэш');
-                // Если сервер упал, берем данные из кэша
                 try {
                     const localChips = localStorage.getItem('ms_global_chips');
                     if (localChips) game.chips = parseInt(localChips) || 0;
@@ -278,16 +276,31 @@ function loadGlobalChips() {
             });
     }
     
-    // Если ВК нет (локальный запуск), берем всё из кэша
+    // 2. Если ВК нет (локальный запуск), берем всё из кэша
     try {
         const localChips = localStorage.getItem('ms_global_chips');
         if (localChips) game.chips = parseInt(localChips) || 0;
+        
         const localUnlocks = localStorage.getItem('ms_terminal_unlocks'); 
         if (localUnlocks) game.terminalUnlocks = JSON.parse(localUnlocks); 
+        
         const localSkin = localStorage.getItem('ms_equipped_skin'); 
         if (localSkin) game.equippedSkin = localSkin; 
+        
         const localDaily = localStorage.getItem('ms_daily_chips');
         if (localDaily) game.dailyChips = JSON.parse(localDaily);
+        
+        // Загружаем купленные улучшения
+        const localUpgrades = localStorage.getItem('ms_terminal_upgrades');
+        if (localUpgrades) game.terminalUpgrades = JSON.parse(localUpgrades);
+
+        // Загружаем сумку имплантов
+        const localImplants = localStorage.getItem('ms_implants_bag');
+        if (localImplants) game.implantsBag = JSON.parse(localImplants);
+		
+		 // Загружаем надетые импланты
+        const localEquipped = localStorage.getItem('ms_equipped_implants'); // <--- ДОБАВИТЬ
+        if (localEquipped) game.equippedImplants = JSON.parse(localEquipped); // <--- ДОБАВИТЬ
     } catch (e) {}
 
     return Promise.resolve();
@@ -299,6 +312,9 @@ function saveGlobalChips() {
     try { localStorage.setItem('ms_daily_chips', JSON.stringify(game.dailyChips)); } catch(e) {}
     try { localStorage.setItem('ms_terminal_unlocks', JSON.stringify(game.terminalUnlocks)); } catch(e) {} 
     try { localStorage.setItem('ms_equipped_skin', game.equippedSkin); } catch(e) {}
+	try { localStorage.setItem('ms_terminal_upgrades', JSON.stringify(game.terminalUpgrades)); } catch(e) {} 
+    try { localStorage.setItem('ms_implants_bag', JSON.stringify(game.implantsBag)); } catch(e) {}
+	try { localStorage.setItem('ms_equipped_implants', JSON.stringify(game.equippedImplants)); } catch(e) {}
 }
 
 function addChips(amount, reason = 'unknown') {

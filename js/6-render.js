@@ -288,17 +288,42 @@ function draw() {
         ctx.fillStyle = '#333'; ctx.beginPath(); ctx.arc(0, 0, 13, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#ff8800'; ctx.lineWidth = 3; ctx.stroke();
         ctx.fillStyle = '#ff0044'; ctx.shadowColor = '#ff0044'; ctx.shadowBlur = 10; ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0; ctx.restore();
     }
-    for (const wp of game.weaponPacks) {
+        for (const wp of game.weaponPacks) {
         const bounce = Math.sin(wp.phase) * 4;
         ctx.save(); ctx.translate(wp.x, wp.y + bounce);
-        ctx.shadowColor = '#44ddff'; ctx.shadowBlur = 20;
-        ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(0, 18, 16, 6, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = 'rgba(68, 221, 255, 0.3)'; ctx.beginPath(); ctx.arc(0, 0, 18, 0, Math.PI * 2); ctx.fill();
-        ctx.shadowBlur = 0;
-        if (wp.weaponId === 'sniper') {
-            ctx.fillStyle = '#111'; ctx.fillRect(-18, -3, 32, 6); ctx.fillStyle = '#333'; ctx.fillRect(10, -5, 10, 10); ctx.fillStyle = '#444'; ctx.fillRect(-5, -6, 5, 12);
+        
+        // Проверяем, имплант это или оружие
+        if (IMPLANTS_CONFIG[wp.weaponId]) {
+            // === ОТРИСОВКА ИМПЛАНТА ===
+            // Желтое свечение
+            ctx.shadowColor = '#ffcc00'; ctx.shadowBlur = 20;
+            ctx.fillStyle = 'rgba(255, 204, 0, 0.2)'; 
+            ctx.beginPath(); ctx.arc(0, 0, 18, 0, Math.PI * 2); ctx.fill();
+            
+            ctx.shadowBlur = 0;
+            // Иконка (эмодзи)
+            ctx.font = '24px Arial'; 
+            ctx.textAlign = 'center'; 
+            ctx.textBaseline = 'middle';
+            ctx.fillText(IMPLANTS_CONFIG[wp.weaponId].icon, 0, 0);
+            
         } else {
-            ctx.fillStyle = '#333'; ctx.fillRect(-14, -4, 22, 8); ctx.fillStyle = '#555'; ctx.fillRect(8, -3, 8, 6); ctx.fillStyle = '#666'; ctx.fillRect(-8, -8, 6, 4);
+            // === ОТРИСОВКА ОРУЖИЯ (старый код) ===
+            ctx.shadowColor = '#44ddff'; ctx.shadowBlur = 20;
+            ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(0, 18, 16, 6, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = 'rgba(68, 221, 255, 0.3)'; ctx.beginPath(); ctx.arc(0, 0, 18, 0, Math.PI * 2); ctx.fill();
+            ctx.shadowBlur = 0;
+            
+            // Рисуем модельку оружия
+            if (wp.weaponId === 'sniper') {
+                ctx.fillStyle = '#111'; ctx.fillRect(-18, -3, 32, 6); 
+                ctx.fillStyle = '#333'; ctx.fillRect(10, -5, 10, 10); 
+                ctx.fillStyle = '#444'; ctx.fillRect(-5, -6, 5, 12);
+            } else {
+                ctx.fillStyle = '#333'; ctx.fillRect(-14, -4, 22, 8); 
+                ctx.fillStyle = '#555'; ctx.fillRect(8, -3, 8, 6); 
+                ctx.fillStyle = '#666'; ctx.fillRect(-8, -8, 6, 4);
+            }
         }
         ctx.restore();
     }
@@ -321,12 +346,47 @@ function draw() {
             ctx.fillStyle = '#ff0044'; ctx.shadowColor = '#ff0044'; ctx.shadowBlur = 10;
             ctx.fillRect(-8, -2, 16, 4);
             ctx.restore();
+		} else if (b.isClaw) {
+			ctx.save();
+			ctx.shadowColor = '#ff0066';
+			ctx.shadowBlur = 12;
+			ctx.fillStyle = '#ff0066';
+			ctx.beginPath(); ctx.arc(b.x, b.y, 3, 0, Math.PI * 2); ctx.fill();
+			ctx.fillStyle = '#ffffff';
+			ctx.beginPath(); ctx.arc(b.x, b.y, 1.5, 0, Math.PI * 2); ctx.fill();
+			ctx.shadowBlur = 0;
+			ctx.restore();
         } else {
             ctx.fillStyle = b.isShotgun ? '#ffaa33' : (b.pierce ? '#ff00aa' : '#ffdd44'); 
             ctx.shadowColor = b.isShotgun ? '#ffaa33' : (b.pierce ? '#ff00aa' : '#ffdd44'); 
             ctx.shadowBlur = b.pierce ? 15 : 10;
             ctx.beginPath(); ctx.arc(b.x, b.y, b.isShotgun ? 3 : (b.pierce ? 2 : 4), 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
         }
+    }
+	        // Отрисовка лазеров клешни
+    for (const laser of game.clawLasers) {
+        ctx.save();
+        
+        // Внешнее свечение
+        ctx.strokeStyle = '#ff0066';
+        ctx.lineWidth = 5;
+        ctx.shadowColor = '#ff0066';
+        ctx.shadowBlur = 12;
+        ctx.beginPath();
+        ctx.moveTo(laser.x1, laser.y1);
+        ctx.lineTo(laser.x2, laser.y2);
+        ctx.stroke();
+
+        // Белая сердцевина
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.shadowBlur = 0;
+        ctx.beginPath();
+        ctx.moveTo(laser.x1, laser.y1);
+        ctx.lineTo(laser.x2, laser.y2);
+        ctx.stroke();
+        
+        ctx.restore();
     }
     for (const a of game.arrows) {
         ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(a.angle);
@@ -362,7 +422,32 @@ function draw() {
             ctx.restore();
         }
     }
-
+	
+	    // Отрисовка волны отбрасывания (Железные сапоги)
+    for (const sw of game.shockwaves) {
+        const progress = 1 - (sw.life / sw.maxLife); // от 0 до 1
+        const currentRadius = sw.radius * progress;
+        
+        ctx.save();
+        ctx.strokeStyle = `rgba(255, 204, 0, ${1 - progress})`; // Желтая, затухает
+        ctx.lineWidth = 8;
+        ctx.shadowColor = '#ffcc00';
+        ctx.shadowBlur = 20;
+        
+        ctx.beginPath();
+        ctx.arc(sw.x, sw.y, currentRadius, 0, Math.PI * 2);
+        ctx.stroke();
+        
+        // Внутренний круг для объема
+        ctx.strokeStyle = `rgba(255, 255, 255, ${1 - progress})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(sw.x, sw.y, currentRadius * 0.8, 0, Math.PI * 2);
+        ctx.stroke();
+        
+        ctx.restore();
+    }
+	
     if (game.player) {
         game.player.draw();
         

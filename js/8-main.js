@@ -1,3 +1,5 @@
+let introTimeouts = [];
+let introBeatInterval = null;
 function resize() {
     W = window.innerWidth; H = window.innerHeight;
     const dpr = window.devicePixelRatio || 1;
@@ -154,7 +156,7 @@ window.addEventListener('keydown', resumeAudioOnGesture);
 function setupMobileControls() {
     if (!isMobile) return;
     const elJoy = document.getElementById('joystick-container'); const elShoot = document.getElementById('shoot-joystick-container'); const elInv = document.getElementById('inv-btn-mobile');
-    if (elJoy) elJoy.classList.remove('hidden'); if (elShoot) elShoot.classList.remove('hidden'); if (elInv) elInv.classList.remove('hidden');
+    // if (elJoy) elJoy.classList.remove('hidden'); if (elShoot) elShoot.classList.remove('hidden'); if (elInv) elInv.classList.remove('hidden');
 
     const shootJoystickContainer = document.getElementById('shoot-joystick-container');
     const shootJoystickBase = document.getElementById('shoot-joystick-base'); const shootJoystickStick = document.getElementById('shoot-joystick-stick');
@@ -205,8 +207,14 @@ function setupMobileControls() {
         }
     }
 
-    const invBtn = document.getElementById('inv-btn-mobile'); if (invBtn) invBtn.addEventListener('touchstart', (e) => { e.preventDefault(); toggleInventory(); }, { passive: false });
-    const menuBtn = document.getElementById('menu-btn-mobile'); if (menuBtn) menuBtn.addEventListener('touchstart', (e) => { e.preventDefault(); togglePause(); }, { passive: false });
+
+    const invBtn = document.getElementById('inv-btn-mobile'); 
+	if (invBtn) invBtn.addEventListener('touchstart', (e) => { e.preventDefault(); toggleInventory(); }, { passive: false });
+	const impBtn = document.getElementById('implant-btn-mobile');
+    if (impBtn) impBtn.addEventListener('touchstart', (e) => { e.preventDefault(); useImplantAbility(); }, { passive: false });
+    const menuBtn = document.getElementById('menu-btn-mobile'); 
+	if (menuBtn) menuBtn.addEventListener('touchstart', (e) => { e.preventDefault(); togglePause(); }, { passive: false });
+	
 
     canvas.addEventListener('touchstart', (e) => {
         if (game.state !== 'playing') return; const touch = e.touches[0]; if (!touch) return;
@@ -251,6 +259,11 @@ window.addEventListener('keydown', (e) => {
         }
         
         startReload(); // И запускаем саму перезарядку (если есть патроны)
+        return;
+    }
+	if ((key === 'q' || key === 'й') && game.state === 'playing') {
+        e.preventDefault();
+        useImplantAbility();
         return;
     }
     
@@ -298,6 +311,12 @@ document.getElementById('btn-support').addEventListener('click', () => {
 });
 document.getElementById('btn-devs').addEventListener('click', () => { document.getElementById('devs-modal').classList.remove('hidden'); });
 document.getElementById('btn-close-devs').addEventListener('click', () => { document.getElementById('devs-modal').classList.add('hidden'); });
+// Кнопки Кабинета
+document.getElementById('btn-cabinet').addEventListener('click', openCabinet);
+document.getElementById('btn-close-cabinet').addEventListener('click', closeCabinet);
+document.getElementById('cabinet-tab-skins').addEventListener('click', () => switchCabinetTab('skins'));
+document.getElementById('cabinet-tab-implants').addEventListener('click', () => switchCabinetTab('implants'));
+
 
 // ===== НОВЫЕ ОБРАБОТЧИКИ КНОПОК =====
 // Кнопка закрытия окна ежедневного бонуса
@@ -438,8 +457,7 @@ function drawMenuScene() {
     ctx.globalAlpha = 1;
 }
 
-let introTimeouts = [];
-let introBeatInterval = null;
+
 
 function playIntro() {
     const splash = document.getElementById('splash-screen'); const royal = document.getElementById('splash-royal'); const title = document.getElementById('splash-title'); const flash = document.getElementById('splash-flash');
@@ -506,9 +524,12 @@ function initReadyScreen() {
 }
 
 initReadyScreen();
+document.getElementById('btn-skip-intro').addEventListener('click', skipIntro);
 
 function loop(now) {
     const dt = Math.min((now - lastTime) / 1000, 0.05); lastTime = now;
+	const dpr = window.devicePixelRatio || 1;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     if (game.state === 'playing' || game.state === 'inventory') update(dt);
     if (game.state === 'menu') {
         if (hudVisible) { document.getElementById('hud').style.display = 'none'; hudVisible = false; }

@@ -4,28 +4,234 @@ class Player {
         this.inventory = []; this.currentWeapon = 'pistol'; this.ownedWeapons = ['pistol']; this.angle = 0;
 		this.magAmmo = WEAPONS[this.currentWeapon].magSize; // Патроны в текущей обойме
         this.isReloading = false; // Флаг перезарядки
+		this.weaponMags = {
+            pistol: WEAPONS.pistol.magSize,
+            shotgun: WEAPONS.shotgun.magSize,
+            sniper: WEAPONS.sniper.magSize,
+            alien_rifle: WEAPONS.alien_rifle.magSize
+        };
         this.applyUpgrades(true);
+		this.claws = [];
+		this.initClaws();
     }
-        applyUpgrades(fullHeal = false) {
+        
+		applyUpgrades(fullHeal = false) {
         const u = game.upgrades; 
         
-        // МЕНЯЕМ const НА let, чтобы можно было прибавить/отнять значения
-        let extraHp = game.terminalUnlocks && game.terminalUnlocks['extraHp'] ? 10 : 0; 
-        let extraSpeed = game.terminalUnlocks && game.terminalUnlocks['extraSpeed'] ? 0.05 : 0; 
+        const tu = game.terminalUpgrades || {};
         
-        // --- БОНУСЫ СКИНА "МЕДВЕДЬ" ---
+        let extraHp = (tu['extraHp'] || 0) * 10; 
+        let extraSpeed = (tu['extraSpeed'] || 0) * 0.05; 
+        let extraDamage = (tu['extraDamage'] || 0) * 2; 
+        
         if (game.equippedSkin === 'skinBear') {
-            extraHp += 50;       // +50 к максимальному HP
-            extraSpeed -= 0.05;  // -5% к скорости передвижения
+            extraHp += 50;
+            extraSpeed -= 0.05;
         }
         
         this.maxHp = 100 + u.maxhp * 10 + extraHp; 
         this.speed = 3.4 * (1 + u.speed * 0.05 + extraSpeed); 
+        this.extraDamage = extraDamage; 
         this.maxAmmo = 300;
         
         if (fullHeal) this.hp = this.maxHp; else this.hp = Math.min(this.hp, this.maxHp);
     }
-    getWeapon() { return WEAPONS[this.currentWeapon]; }
+    
+	initClaws() {
+        this.claws = [];
+        const count = game.equippedImplants.filter(id => id === 'claw').length;
+        if (count >= 1) this.claws.push({ side: 1, angle: this.angle || 0, cooldown: 0, shootAnim: 0 });
+        if (count >= 2) this.claws.push({ side: -1, angle: this.angle || 0, cooldown: 0, shootAnim: 0 });
+    }
+
+        updateClaws(dt) {
+        if (!this.claws || !this.claws.length) return;
+        const cfg = IMPLANTS_CONFIG.claw;
+
+        for (const claw of this.claws) {
+            const sideAngle = this.angle + Math.PI / 2;
+            const backAngle = this.angle + Math.PI;
+            const baseX = this.x + Math.cos(sideAngle) * claw.side * 15 + Math.cos(backAngle) * 15;
+            const baseY = this.y + Math.sin(sideAngle) * claw.side * 15 + Math.sin(backAngle) * 15;
+
+            let target = null, minDist = Infinity;
+            
+            // 1. Поиск цели с проверкой стен
+            for (const e of game.enemies) {
+                const d = Math.hypot(e.x - this.x, e.y - this.y);
+                
+                if (d < cfg.range && d < minDist) { 
+                    
+                    // --- ПРОВЕРКА ЛИНИИ ВИДИМОСТИ ---
+                    let canSee = true;
+                    const dx = e.x - baseX;
+                    const dy = e.y - baseY;
+                    const distToEnemy = Math.hypot(dx, dy);
+                    const steps = Math.max(10, Math.ceil(distToEnemy / 20));
+                    
+                    for (let i = 1; i < steps; i++) {
+                        const t = i / steps;
+                        const cx = baseX + dx * t;
+                        const cy = baseY + dy * t;
+                        for (const w of game.walls) {
+                            if (cx > w.x && cx < w.x + w.w && cy > w.y && cy < w.y + w.h) {
+                                canSee = false; // Стена мешает!
+                                break;
+                            }
+                        }
+                        if (!canSee) break;
+                    }
+                    // ---------------------------------
+
+                    if (canSee) {
+                        minDist = d; 
+                        target = e; 
+                    }
+                }
+            }
+
+            // 2. Поворот ствола
+            const targetAngle = target ? Math.atan2(target.y - baseY, target.x - baseX) : this.angle;
+
+            let diff = targetAngle - claw.angle;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+            claw.angle += diff * Math.min(1, dt * 10);
+
+            if (claw.damageTimer === undefined) claw.damageTimer = 0;
+            claw.isShooting = false;
+
+            // 3. Стрельба и урон
+            if (target) {
+                const tipDist = 45; 
+                const tipX = baseX + Math.cos(claw.angle) * tipDist;
+                const tipY = baseY + Math.sin(claw.angle) * tipDist;
+
+                let endX = target.x;
+                let endY = target.y;
+                
+                // Проверка луча (чтобы он не рисовался сквозь стены, если цель резко сместилась)
+                const dx = endX - tipX; 
+                const dy = endY - tipY; 
+                const dist = Math.hypot(dx, dy);
+                const steps = Math.ceil(dist / 10);
+                let hitWall = false;
+
+                for (let i = 1; i <= steps; i++) {
+                    const t = i / steps;
+                    const cx = tipX + dx * t;
+                    const cy = tipY + dy * t;
+                    for (const w of game.walls) {
+                        if (cx > w.x && cx < w.x + w.w && cy > w.y && cy < w.y + w.h) {
+                            endX = cx; endY = cy; hitWall = true; break;
+                        }
+                    }
+                    if (hitWall) break;
+                }
+
+                game.clawLasers.push({ x1: tipX, y1: tipY, x2: endX, y2: endY });
+
+                if (!hitWall) {
+                    claw.isShooting = true;
+                    claw.damageTimer -= dt;
+                    
+                    if (claw.damageTimer <= 0) {
+                        target.hp -= 1; 
+                        target.hitFlash = 0.05;
+                        spawnDamageNumber(target.x, target.y - target.radius, 1, target.hp <= 0);
+                        playHitSound();
+                        if (target.hp <= 0) killEnemy(target);
+                        claw.damageTimer += 0.05; 
+                    }
+                }
+            }
+        }
+    }
+
+    drawClaws(c) {
+        if (!this.claws || !this.claws.length) return;
+        for (const claw of this.claws) {
+            const sideAngle = this.angle + Math.PI / 2;
+            const backAngle = this.angle + Math.PI;
+            const baseX = this.x + Math.cos(sideAngle) * claw.side * 15 + Math.cos(backAngle) * 15;
+            const baseY = this.y + Math.sin(sideAngle) * claw.side * 15 + Math.sin(backAngle) * 15;
+
+            const targetAngle = claw.angle;
+            const clawLength = 45; 
+            const endX = baseX + Math.cos(targetAngle) * clawLength;
+            const endY = baseY + Math.sin(targetAngle) * clawLength;
+
+            // Изгиб сустава
+            const bendAngle = targetAngle + claw.side * 0.8; 
+            const elbowX = baseX + Math.cos(bendAngle) * (clawLength * 0.5);
+            const elbowY = baseY + Math.sin(bendAngle) * (clawLength * 0.5);
+
+            c.save();
+            
+            // Разбиваем руку на 10 сегментов для плавности
+            const points = [];
+            for (let i = 0; i <= 10; i++) {
+                const t = i / 10;
+                // Формула квадратичной кривой Безье
+                const px = Math.pow(1-t, 2)*baseX + 2*(1-t)*t*elbowX + Math.pow(t, 2)*endX;
+                const py = Math.pow(1-t, 2)*baseY + 2*(1-t)*t*elbowY + Math.pow(t, 2)*endY;
+                points.push({ x: px, y: py });
+            }
+
+            // Отрисовка сегментов руки
+            for (let i = 0; i < 10; i++) {
+                c.strokeStyle = i % 2 === 0 ? '#555' : '#777';
+                c.lineWidth = 9 - (i * 0.4);
+                c.lineCap = 'round';
+                c.beginPath();
+                c.moveTo(points[i].x, points[i].y);
+                c.lineTo(points[i+1].x, points[i+1].y);
+                c.stroke();
+
+                // Шарниры (соединения)
+                c.fillStyle = '#333';
+                c.beginPath();
+                c.arc(points[i].x, points[i].y, 4.5 - (i*0.2), 0, Math.PI * 2);
+                c.fill();
+            }
+
+            // Крепление к спине
+            c.fillStyle = '#222'; c.strokeStyle = '#444'; c.lineWidth = 2;
+            c.beginPath(); c.arc(baseX, baseY, 8, 0, Math.PI * 2); c.fill(); c.stroke();
+
+            // === ЛАЗЕРНЫЙ СТВОЛ ВМЕСТО КЛЕШНИ ===
+            c.save();
+            c.translate(endX, endY);
+            c.rotate(targetAngle);
+
+            // Корпус пушки
+            c.fillStyle = '#2a2a2a'; c.strokeStyle = '#111'; c.lineWidth = 2;
+            c.beginPath(); c.roundRect(-5, -7, 20, 14, 4); c.fill(); c.stroke();
+
+            // Дуло
+            c.fillStyle = '#444';
+            c.fillRect(15, -3, 12, 6);
+
+            // Светящееся ядро (светится постоянно, пока бьет)
+            const glow = claw.isShooting ? 25 : 5;
+            c.fillStyle = '#ff0066'; c.shadowColor = '#ff0066'; c.shadowBlur = glow;
+            c.fillRect(25, -2, 4, 4);
+            c.shadowBlur = 0;
+
+            c.restore(); // конец ствола
+            c.restore(); // конец отрисовки
+        }
+    }
+	
+	setWeapon(wid) {
+        if (!this.ownedWeapons.includes(wid)) return;
+        this.weaponMags[this.currentWeapon] = this.magAmmo; // Сохраняем текущие патроны
+        this.currentWeapon = wid;
+        this.magAmmo = this.weaponMags[wid] !== undefined ? this.weaponMags[wid] : WEAPONS[wid].magSize; // Загружаем новые
+        this.isReloading = false; // Сбрасываем перезарядку при смене
+    }
+	
+	getWeapon() { return WEAPONS[this.currentWeapon]; }
     update(dt) {
         let dx = 0, dy = 0;
         if (isMobile && joystickActive) {
@@ -46,27 +252,27 @@ class Player {
             this.angle = Math.atan2(worldMouseY - this.y, worldMouseX - this.x);
         }
         if (this.recoil > 0) this.recoil -= dt * 10;
+		this.updateClaws(dt);
     }
     collides(x, y) {
         for (const w of game.walls) { if (x + this.radius > w.x && x - this.radius < w.x + w.w && y + this.radius > w.y && y - this.radius < w.y + w.h) return true; }
         return false;
     }
-    draw() {
+        draw(targetCtx = null) {
+        const c = targetCtx || ctx; // Если контекст не передан, рисуем на основном экране
         const bob = Math.sin(this.walkPhase) * 2;
-        ctx.save(); ctx.translate(this.x, this.y + bob);
-        ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.beginPath(); ctx.ellipse(0, this.radius - 2, this.radius, this.radius * 0.4, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.rotate(this.angle);
-        const recoilOffset = this.recoil > 0 ? -this.recoil * 3 : 0; ctx.translate(recoilOffset, 0);
+        c.save(); c.translate(this.x, this.y + bob);
+        c.fillStyle = 'rgba(0,0,0,0.4)'; c.beginPath(); c.ellipse(0, this.radius - 2, this.radius, this.radius * 0.4, 0, 0, Math.PI * 2); c.fill();
+        c.rotate(this.angle);
+        const recoilOffset = this.recoil > 0 ? -this.recoil * 3 : 0; c.translate(recoilOffset, 0);
         
         const legSwing = Math.sin(this.walkPhase) * 5;
         
-        // Цвета по умолчанию (обычный синий костюм)
         let legColor = '#3a5a8a', bodyGrad0 = '#5a8aca', bodyGrad1 = '#2a4a7a', strokeColor = '#1a2a4a';
         
-        // Применяем цвета и эффекты в зависимости от надетого скина
         if (game.equippedSkin === 'skinCyber') {
             legColor = '#00ff88'; bodyGrad0 = '#00ff88'; bodyGrad1 = '#008844'; strokeColor = '#ffffff';
-            ctx.shadowColor = '#00ff88'; ctx.shadowBlur = 15; 
+            c.shadowColor = '#00ff88'; c.shadowBlur = 15; 
         } else if (game.equippedSkin === 'skinShadow') {
             legColor = '#222'; bodyGrad0 = '#444'; bodyGrad1 = '#111'; strokeColor = '#888';
         } else if (game.equippedSkin === 'skinBear') {
@@ -75,69 +281,93 @@ class Player {
             legColor = '#4a1a66'; bodyGrad0 = '#8a2be2'; bodyGrad1 = '#4a1a66'; strokeColor = '#2a0a44';
         }
 
-        // Рисуем ноги и тело
-        ctx.fillStyle = legColor; ctx.fillRect(-6, -14 + legSwing, 8, 6); ctx.fillRect(-6, 8 - legSwing, 8, 6);
-        const grad = ctx.createRadialGradient(-4, -4, 2, 0, 0, this.radius);
+        c.fillStyle = legColor; c.fillRect(-6, -14 + legSwing, 8, 6); c.fillRect(-6, 8 - legSwing, 8, 6);
+        const grad = c.createRadialGradient(-4, -4, 2, 0, 0, this.radius);
         grad.addColorStop(0, bodyGrad0); grad.addColorStop(1, bodyGrad1);
-        ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = strokeColor; ctx.lineWidth = 2; ctx.stroke();
+        c.fillStyle = grad; c.beginPath(); c.arc(0, 0, this.radius, 0, Math.PI * 2); c.fill();
+        c.strokeStyle = strokeColor; c.lineWidth = 2; c.stroke();
         
-        ctx.shadowBlur = 0; 
+        c.shadowBlur = 0; 
 		
-        // Отрисовка Ушей Медведя
         if (game.equippedSkin === 'skinBear') {
-            ctx.fillStyle = '#5c2e0b';
-            ctx.beginPath(); ctx.arc(0, -this.radius + 4, 8, 0, Math.PI * 2); ctx.fill();
-            ctx.beginPath(); ctx.arc(0, this.radius - 4, 8, 0, Math.PI * 2); ctx.fill();
+            c.fillStyle = '#5c2e0b';
+            c.beginPath(); c.arc(0, -this.radius + 4, 8, 0, Math.PI * 2); c.fill();
+            c.beginPath(); c.arc(0, this.radius - 4, 8, 0, Math.PI * 2); c.fill();
         }
 
-        // Отрисовка Щита Инопланетянина
         if (game.equippedSkin === 'skinAlien' && game.alienShieldHp > 0) {
-            ctx.save();
-            ctx.strokeStyle = 'rgba(0, 255, 255, 0.8)'; ctx.fillStyle = 'rgba(0, 255, 255, 0.15)';
-            ctx.lineWidth = 3; ctx.shadowColor = '#00ffff'; ctx.shadowBlur = 15;
-            ctx.beginPath(); ctx.arc(0, 0, this.radius + 15, 0, Math.PI * 2);
-            ctx.fill(); ctx.stroke(); ctx.restore();
+            c.save();
+            c.strokeStyle = 'rgba(0, 255, 255, 0.8)'; c.fillStyle = 'rgba(0, 255, 255, 0.15)';
+            c.lineWidth = 3; c.shadowColor = '#00ffff'; c.shadowBlur = 15;
+            c.beginPath(); c.arc(0, 0, this.radius + 15, 0, Math.PI * 2);
+            c.fill(); c.stroke(); c.restore();
+        }
+		        // Отрисовка Энергощита (Имплант)
+        if (game.equippedSkin !== 'skinAlien' && game.implantShieldHp > 0) {
+            // Ищем, какой именно щит надет
+            const activeShield = game.equippedImplants.find(id => id && IMPLANTS_CONFIG[id] && IMPLANTS_CONFIG[id].type === 'shield');
+            
+            if (activeShield) {
+                // Цвет зависит от уровня щита
+                let color = '#ffaa00'; // 1 ур (Оранжевый)
+                if (activeShield === 'shield_2') color = '#00ff88'; // 2 ур (Зеленый)
+                if (activeShield === 'shield_3') color = '#ff00aa'; // 3 ур (Розовый)
+
+                c.save();
+                // Полупрозрачная заливка
+                c.globalAlpha = 0.15;
+                c.fillStyle = color;
+                c.beginPath(); c.arc(0, 0, this.radius + 15, 0, Math.PI * 2); c.fill();
+                
+                // Яркая обводка
+                c.globalAlpha = 0.9;
+                c.strokeStyle = color; 
+                c.lineWidth = 3; 
+                c.shadowColor = color; 
+                c.shadowBlur = 15;
+                c.beginPath(); c.arc(0, 0, this.radius + 15, 0, Math.PI * 2);
+                c.stroke(); 
+                c.restore();
+            }
         }
 		
-        // Отрисовка Оружия
         if (this.currentWeapon === 'shotgun') {
-            ctx.fillStyle = '#333'; ctx.fillRect(this.radius - 4, -5, 22, 10); ctx.fillStyle = '#555'; ctx.fillRect(this.radius + 12, -4, 12, 8);
+            c.fillStyle = '#333'; c.fillRect(this.radius - 4, -5, 22, 10); c.fillStyle = '#555'; c.fillRect(this.radius + 12, -4, 12, 8);
         } else if (this.currentWeapon === 'sniper') {
-            ctx.fillStyle = '#111'; ctx.fillRect(this.radius - 4, -3, 32, 6); ctx.fillStyle = '#333'; ctx.fillRect(this.radius + 15, -5, 10, 10);
-            ctx.fillStyle = '#444'; ctx.fillRect(this.radius + 5, -6, 5, 12);
+            c.fillStyle = '#111'; c.fillRect(this.radius - 4, -3, 32, 6); c.fillStyle = '#333'; c.fillRect(this.radius + 15, -5, 10, 10);
+            c.fillStyle = '#444'; c.fillRect(this.radius + 5, -6, 5, 12);
         } else if (this.currentWeapon === 'alien_rifle') {
-            // Отрисовка Лазерной винтовки
-            ctx.save();
-            ctx.fillStyle = '#222'; ctx.fillRect(this.radius - 8, -5, 8, 10); // Приклад
-            ctx.fillStyle = '#00ffff'; ctx.shadowColor = '#00ffff'; ctx.shadowBlur = 10;
-            ctx.fillRect(this.radius - 4, -4, 26, 8); // Ствол
-            ctx.fillStyle = '#ff0044'; ctx.shadowColor = '#ff0044'; ctx.shadowBlur = 15;
-            ctx.beginPath(); ctx.arc(this.radius + 14, 0, 4, 0, Math.PI * 2); ctx.fill(); // Ядро
-            ctx.shadowBlur = 0; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1;
-            ctx.strokeRect(this.radius - 4, -4, 26, 8); // Обводка
-            ctx.fillStyle = '#00ffff'; ctx.fillRect(this.radius + 22, -2, 6, 4); // Дуло
-            ctx.restore();
+            c.save();
+            c.fillStyle = '#222'; c.fillRect(this.radius - 8, -5, 8, 10);
+            c.fillStyle = '#00ffff'; c.shadowColor = '#00ffff'; c.shadowBlur = 10;
+            c.fillRect(this.radius - 4, -4, 26, 8);
+            c.fillStyle = '#ff0044'; c.shadowColor = '#ff0044'; c.shadowBlur = 15;
+            c.beginPath(); c.arc(this.radius + 14, 0, 4, 0, Math.PI * 2); c.fill();
+            c.shadowBlur = 0; c.strokeStyle = '#ffffff'; c.lineWidth = 1;
+            c.strokeRect(this.radius - 4, -4, 26, 8);
+            c.fillStyle = '#00ffff'; c.fillRect(this.radius + 22, -2, 6, 4);
+            c.restore();
         } else {
-            ctx.fillStyle = '#222'; ctx.fillRect(this.radius - 4, -3, 16, 6); ctx.fillStyle = '#444'; ctx.fillRect(this.radius + 6, -2, 8, 4);
+            c.fillStyle = '#222'; c.fillRect(this.radius - 4, -3, 16, 6); c.fillStyle = '#444'; c.fillRect(this.radius + 6, -2, 8, 4);
         }
         
-        // Отрисовка Головы
         if (game.equippedSkin === 'skinAlien') {
-            ctx.fillStyle = '#66ff66'; ctx.beginPath(); ctx.ellipse(0, 0, 12, 7, 0, 0, Math.PI * 2); ctx.fill(); // Продолговатая голова
-            ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(4, -3, 2.5, 4, -0.2, 0, Math.PI * 2); ctx.ellipse(4, 3, 2.5, 4, 0.2, 0, Math.PI * 2); ctx.fill(); // Глаза
+            c.fillStyle = '#66ff66'; c.beginPath(); c.ellipse(0, 0, 12, 7, 0, 0, Math.PI * 2); c.fill();
+            c.fillStyle = '#000'; c.beginPath(); c.ellipse(4, -3, 2.5, 4, -0.2, 0, Math.PI * 2); c.ellipse(4, 3, 2.5, 4, 0.2, 0, Math.PI * 2); c.fill();
         } else {
-            ctx.fillStyle = '#ffcc99'; ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.fill(); // Обычная голова
-            ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(4, -3, 1.5, 0, Math.PI * 2); ctx.arc(4, 3, 1.5, 0, Math.PI * 2); ctx.fill();
+            c.fillStyle = '#ffcc99'; c.beginPath(); c.arc(0, 0, 8, 0, Math.PI * 2); c.fill();
+            c.fillStyle = '#000'; c.beginPath(); c.arc(4, -3, 1.5, 0, Math.PI * 2); c.arc(4, 3, 1.5, 0, Math.PI * 2); c.fill();
         }
         
-        ctx.restore();
+        c.restore();
+		this.drawClaws(c);
     }
 }
 
 class Enemy {
     constructor(x, y, type) {
         const cfg = ENEMY_TYPES[type];
+		this.stunTimer = 0;
         this.x = x; this.y = y; this.type = type; this.hp = cfg.hp; this.maxHp = cfg.hp; this.speed = cfg.speed; this.damage = cfg.damage;
         this.radius = cfg.radius; this.color = cfg.color; this.darkColor = cfg.darkColor; this.score = cfg.score; this.coins = cfg.coins;
         this.isSquare = !!cfg.isSquare; this.isTurret = !!cfg.isTurret; this.isShield = !!cfg.isShield; this.isBomber = !!cfg.isBomber;
@@ -172,6 +402,13 @@ class Enemy {
 
     update(dt) {
         const dx = game.player.x - this.x; const dy = game.player.y - this.y; const dist = Math.hypot(dx, dy);
+		
+		 // Если враг оглушен, он не двигается и не атакует
+        if (this.stunTimer > 0) {
+            this.stunTimer -= dt;
+            if (this.hitFlash > 0) this.hitFlash -= dt;
+            return; // Выходим из update, пропуская всю логику ИИ
+        }
 		
 		
 		
@@ -604,6 +841,22 @@ class Enemy {
             ctx.fillStyle = barColor; ctx.fillRect(bx, by, w * (this.hp / this.maxHp), h);
             if (this.isMegaBoss) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.strokeRect(bx, by, w, h); }
         }
+		        // Индикатор оглушения
+        if (this.stunTimer > 0) {
+            ctx.save();
+            ctx.translate(this.x, this.y - this.radius - 15);
+            const time = performance.now() / 200;
+            for (let i = 0; i < 3; i++) {
+                const angle = time + (i * Math.PI * 2 / 3);
+                const sx = Math.cos(angle) * 15;
+                const sy = Math.sin(angle) * 5;
+                ctx.fillStyle = '#ffdd00';
+                ctx.font = 'bold 14px Arial';
+                ctx.fillText('💫', sx - 7, sy);
+            }
+            ctx.restore();
+        }
+		
     }
 }
 

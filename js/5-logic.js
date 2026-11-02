@@ -8,13 +8,39 @@ let _lastHitSoundTime = 0;
 
 function damagePlayer(amount) {
     let finalDamage = amount;
+    let shieldActive = false;
+    let shieldColor = '#00ffff';
+
+    // 1. Проверяем щит скина Инопланетянина
     if (game.equippedSkin === 'skinAlien' && game.alienShieldHp > 0) {
         const absorbed = amount * 0.5;
         finalDamage = amount * 0.5;
         game.alienShieldHp -= absorbed;
         if (game.alienShieldHp < 0) game.alienShieldHp = 0;
-        spawnParticles(game.player.x, game.player.y, '#00ffff', 5);
+        shieldActive = true;
+        shieldColor = '#00ffff';
+    } 
+    // 2. Проверяем энергощит из имплантов
+    else if (game.implantShieldHp > 0) {
+        const activeShieldId = game.equippedImplants.find(id => id && IMPLANTS_CONFIG[id] && IMPLANTS_CONFIG[id].type === 'shield');
+        if (activeShieldId) {
+            const cfg = IMPLANTS_CONFIG[activeShieldId];
+            const absorbed = amount * cfg.absorbPct;
+            finalDamage = amount * (1 - cfg.absorbPct);
+            
+            game.implantShieldHp -= absorbed;
+            if (game.implantShieldHp < 0) game.implantShieldHp = 0;
+            
+            shieldActive = true;
+            shieldColor = activeShieldId === 'shield_3' ? '#ff00aa' : (activeShieldId === 'shield_2' ? '#00ff88' : '#ffaa00');
+        }
     }
+
+    if (shieldActive) {
+        spawnParticles(game.player.x, game.player.y, shieldColor, 5);
+        playSound(400, 0.1, 'sine');
+    }
+
     game.player.hp -= finalDamage;
     updateHUD();
     if (game.player.hp <= 0) { 
@@ -285,6 +311,14 @@ function generateLevel(levelNum) {
         const spot = getSafeSpawnPoint(20, 200);
         game.weaponPacks.push({ x: spot.x, y: spot.y, phase: Math.random() * Math.PI * 2, weaponId: wid });
     }
+	    if (levelNum === 5) {
+        const spot = getSafeSpawnPoint(20, 200);
+        game.weaponPacks.push({ x: spot.x, y: spot.y, phase: Math.random() * Math.PI * 2, weaponId: 'iron_boots' });
+    }
+    if (levelNum === 10) {
+        const spot = getSafeSpawnPoint(20, 200);
+        game.weaponPacks.push({ x: spot.x, y: spot.y, phase: Math.random() * Math.PI * 2, weaponId: 'spiked_boots' });
+    }
 }
 
 function applyWaveModifierToEnemy(e) {
@@ -379,10 +413,11 @@ function shoot() {
     // Тратим патроны ТОЛЬКО из обоймы!
     if (!infiniteAmmo) {
         game.player.magAmmo -= weapon.ammoPerShot;
+		game.player.weaponMags[weapon.id] = game.player.magAmmo;
     }
 
     game.player.recoil = weapon.id === 'sniper' ? 6 : 3;
-    const totalDamage = weapon.damage + game.upgrades.damage * 2;
+        const totalDamage = weapon.damage + game.upgrades.damage * 2 + (game.player.extraDamage || 0);
     
     for (let i = 0; i < weapon.bulletsPerShot; i++) {
         const angle = game.player.angle + (Math.random() - 0.5) * weapon.spread;
@@ -428,6 +463,7 @@ function startReload() {
         const canGive = Math.min(need, game.player.ammo);
         game.player.magAmmo += canGive;
         game.player.ammo -= canGive;
+		game.player.weaponMags[game.player.currentWeapon] = game.player.magAmmo;
         game.player.isReloading = false;
         playSound(600, 0.15, 'square'); // Звук окончания перезарядки
         updateHUD();
@@ -507,6 +543,7 @@ function updateTutorial() {
 
 function update(dt) {
     updateTutorial();
+	game.clawLasers.length = 0;
     if (game.state !== 'playing') return;
     game.player.update(dt);
 
@@ -601,15 +638,40 @@ function update(dt) {
     if (game.comboFlashTimer > 0) game.comboFlashTimer -= dt;
 
     for (let i = game.particles.length - 1; i >= 0; i--) { const p = game.particles[i]; p.x += p.vx; p.y += p.vy; p.vx *= 0.94; p.vy *= 0.94; p.life -= dt; if (p.life <= 0) game.particles.splice(i, 1); }
-    for (let i = game.floatingTexts.length - 1; i >= 0; i--) { const ft = game.floatingTexts[i]; ft.x += ft.vx * dt; ft.y += ft.vy * dt; ft.vy += 250 * dt; ft.life -= dt; if (ft.life <= 0) game.floatingTexts.splice(i, 1); }
+    
+	for (let i = game.floatingTexts.length - 1; i >= 0; i--) { const ft = game.floatingTexts[i]; ft.x += ft.vx * dt; ft.y += ft.vy * dt; ft.vy += 250 * dt; ft.life -= dt; if (ft.life <= 0) game.floatingTexts.splice(i, 1); }
     for (let i = game.explosions.length - 1; i >= 0; i--) { const ex = game.explosions[i]; ex.life -= dt; if (ex.life <= 0) game.explosions.splice(i, 1); }
     for (let i = game.mines.length - 1; i >= 0; i--) { const m = game.mines[i]; m.phase += dt * 5; if (m.armTime > 0) { m.armTime -= dt; continue; } let triggered = false; for (const e of game.enemies) { const d = Math.hypot(e.x - m.x, e.y - m.y); if (d < m.triggerRadius + e.radius) { triggered = true; break; } } if (triggered) { game.mines.splice(i, 1); explodeMine(m); } }
     for (let i = game.coins.length - 1; i >= 0; i--) { const c = game.coins[i]; c.phase += dt * 4; if (Math.hypot(c.x - game.player.x, c.y - game.player.y) < game.player.radius + 15) { game.coins.splice(i, 1); game.totalCoins++; game.score += 5; playSound(900, 0.1, 'sine'); spawnParticles(c.x, c.y, '#ffcc00', 8); updateHUD(); } }
     for (let i = game.healPacks.length - 1; i >= 0; i--) { const h = game.healPacks[i]; h.phase += dt * 3; if (Math.hypot(h.x - game.player.x, h.y - game.player.y) < game.player.radius + 15) { game.healPacks.splice(i, 1); game.player.hp = Math.min(game.player.maxHp, game.player.hp + 40); playSound(800, 0.15, 'sine'); spawnParticles(h.x, h.y, '#ff4466', 10); updateHUD(); } }
     for (let i = game.ammoPacks.length - 1; i >= 0; i--) { const a = game.ammoPacks[i]; a.phase += dt * 3; if (Math.hypot(a.x - game.player.x, a.y - game.player.y) < game.player.radius + 15) { game.ammoPacks.splice(i, 1); game.player.ammo = Math.min(game.player.maxAmmo, game.player.ammo + 20); playSound(500, 0.1, 'square'); spawnParticles(a.x, a.y, '#ffdd44', 8); updateHUD(); } }
     for (let i = game.minePacks.length - 1; i >= 0; i--) { const mp = game.minePacks[i]; mp.phase += dt * 3; if (Math.hypot(mp.x - game.player.x, mp.y - game.player.y) < game.player.radius + 15) { game.minePacks.splice(i, 1); game.player.inventory.push({ type: 'mine', name: 'Мина', icon: '💣' }); playSound(600, 0.15, 'triangle'); spawnParticles(mp.x, mp.y, '#ff8800', 10); updateHUD(); saveProgress(); } }
-    for (let i = game.weaponPacks.length - 1; i >= 0; i--) { const wp = game.weaponPacks[i]; wp.phase += dt * 3; if (Math.hypot(wp.x - game.player.x, wp.y - game.player.y) < game.player.radius + 20) { game.weaponPacks.splice(i, 1); if (!game.player.ownedWeapons.includes(wp.weaponId)) game.player.ownedWeapons.push(wp.weaponId); playSound(700, 0.2, 'sine'); spawnParticles(wp.x, wp.y, '#44ddff', 15); updateHUD(); saveProgress(true); } }
-    
+    for (let i = game.weaponPacks.length - 1; i >= 0; i--) { 
+        const wp = game.weaponPacks[i]; wp.phase += dt * 3; 
+        if (Math.hypot(wp.x - game.player.x, wp.y - game.player.y) < game.player.radius + 20) { 
+            game.weaponPacks.splice(i, 1); 
+            
+            // Если это имплант
+            if (IMPLANTS_CONFIG[wp.weaponId]) {
+                if (!game.implantsBag.includes(wp.weaponId)) {
+                    game.implantsBag.push(wp.weaponId);
+                    playSound(1000, 0.3, 'sine'); 
+                    spawnParticles(wp.x, wp.y, '#ffcc00', 20);
+                    document.getElementById('tutorial-hint').classList.remove('hidden');
+                    document.getElementById('tutorial-hint').innerHTML = `Получен имплант: <b>${IMPLANTS_CONFIG[wp.weaponId].name}</b>!`;
+                    setTimeout(() => document.getElementById('tutorial-hint').classList.add('hidden'), 3000);
+                }
+            } 
+            // Если это оружие
+            else {
+                if (!game.player.ownedWeapons.includes(wp.weaponId)) game.player.ownedWeapons.push(wp.weaponId); 
+                playSound(700, 0.2, 'sine'); 
+                spawnParticles(wp.x, wp.y, '#44ddff', 15); 
+            }
+            updateHUD(); saveProgress(true); 
+        } 
+    }
+	
     if (game.enemies.length === 0) {
         if (game.mode === 'survival') {
             if (game.goldrushPenalty > 0 && game.player) { game.player.hp = Math.min(game.player.maxHp, game.player.hp + game.goldrushPenalty); game.goldrushPenalty = 0; }
@@ -621,6 +683,20 @@ function update(dt) {
         }
     }
     
+	    // Обновление кулдаунов имплантов
+    for (const impId in game.implantCooldowns) {
+        if (game.implantCooldowns[impId] > 0) {
+            game.implantCooldowns[impId] -= dt * 1000; // Переводим секунды в миллисекунды
+            if (game.implantCooldowns[impId] < 0) game.implantCooldowns[impId] = 0;
+        }
+    }
+
+    // Обновление визуальных волн (шоквейвов)
+    for (let i = game.shockwaves.length - 1; i >= 0; i--) {
+        game.shockwaves[i].life -= dt;
+        if (game.shockwaves[i].life <= 0) game.shockwaves.splice(i, 1);
+    }
+	
     if (game.screenShake > 0) game.screenShake -= dt * 30;
 	
     // МУЗЫКА БОССА
@@ -635,4 +711,64 @@ function update(dt) {
             playBattleMusic();
         }
     }
+}
+// ===== АКТИВНЫЕ СПОСОБНОСТИ ИМПЛАНТОВ =====
+function useImplantAbility() {
+    if (game.state !== 'playing') return;
+    
+        // Ищем активный имплант (сапоги), игнорируя щиты
+    const impId = game.equippedImplants.find(id => {
+        if (!id) return false;
+        const cfg = IMPLANTS_CONFIG[id];
+        return cfg && cfg.type !== 'shield' && cfg.type !== 'claw'; 
+    });
+    
+    const cfg = IMPLANTS_CONFIG[impId];
+	
+	if (!impId) return;
+    
+    if (game.implantCooldowns[impId] > 0) return;
+    game.implantCooldowns[impId] = cfg.cooldown;
+    
+    for (const e of game.enemies) {
+        const dx = e.x - game.player.x;
+        const dy = e.y - game.player.y;
+        const dist = Math.hypot(dx, dy);
+        
+        if (dist < cfg.radius) {
+            const angle = Math.atan2(dy, dx);
+            
+            // 1. УРОН
+            if (cfg.damage > 0) {
+                e.hp -= cfg.damage;
+                e.hitFlash = 0.2;
+                spawnDamageNumber(e.x, e.y - e.radius, cfg.damage, e.hp <= 0);
+                if (e.hp <= 0) { killEnemy(e); continue; }
+            }
+            
+            // 2. ОГЛУШЕНИЕ
+            if (cfg.stunDuration > 0) {
+                e.stunTimer = Math.max(e.stunTimer, cfg.stunDuration / 1000); // Переводим в секунды
+            }
+            
+            // 3. ОТБРАСЫВАНИЕ (с проверкой на стены)
+            if (cfg.pushForce > 0) {
+                const force = cfg.pushForce * (1 - (dist / cfg.radius));
+                const steps = 10; // Дробим отбрасывание на 10 шагов
+                const stepX = (Math.cos(angle) * force) / steps;
+                const stepY = (Math.sin(angle) * force) / steps;
+                
+                for (let s = 0; s < steps; s++) {
+                    if (!e.collides(e.x + stepX, e.y)) e.x += stepX;
+                    if (!e.collides(e.x, e.y + stepY)) e.y += stepY;
+                }
+            }
+            
+            spawnParticles(e.x, e.y, cfg.damage > 0 ? '#ff0044' : '#ffcc00', 5);
+        }
+    }
+    
+    game.shockwaves.push({ x: game.player.x, y: game.player.y, life: 0.4, maxLife: 0.4, radius: cfg.radius });
+    game.screenShake = 10;
+    playSound(100, 0.3, 'sawtooth', 0.2);
 }

@@ -55,6 +55,9 @@
     <div id="splash-flash"></div>
     <div id="splash-royal" class="splash-text">Royal Engine представляет</div>
     <div id="splash-title" class="hidden" style="color: #00ff88; font-size: 52px; text-shadow: 0 0 30px #00ff88; letter-spacing: 6px;">MONSTER SHOT</div>
+    
+    <!-- НОВАЯ КНОПКА SKIP -->
+    <button id="btn-skip-intro" class="btn-skip-intro">|> SKIP</button>
 </div>
 
 <div id="game-container">
@@ -99,6 +102,7 @@
     <div id="shoot-joystick-container" class="hidden"><div id="shoot-joystick-base"><div id="shoot-joystick-stick"></div></div></div>
 
     <button id="inv-btn-mobile" class="hidden" aria-label="Инвентарь">🎒</button>
+	<button id="implant-btn-mobile" class="hidden" aria-label="Способность">🥾</button>
     <button id="menu-btn-mobile" class="hidden" aria-label="Пауза">⏸️</button>
 
     <div id="tutorial-hint" class="hidden">Нажми W, A, S или D</div>
@@ -138,6 +142,7 @@
                 <button id="btn-continue" class="btn-primary">ПРОДОЛЖИТЬ</button>
                 <button id="btn-new-game" class="btn-secondary">НОВАЯ ИГРА</button>
                 <button id="btn-tutorial" class="btn-secondary">ПРОЙТИ ОБУЧЕНИЕ</button>
+				<button id="btn-cabinet" class="btn-secondary">🎒 КАБИНЕТ</button>
                 <button id="btn-leaderboard" class="btn-secondary" style="font-size: 14px; padding: 10px 20px; margin-top: 10px;">🏆 РЕКОРДЫ КАМПАНИИ</button>
                 <button id="btn-survival-records" class="btn-secondary" style="font-size: 14px; padding: 10px 20px; margin-top: 10px;">🏆 РЕКОРДЫ ВЫЖИВАНИЯ</button>
                 <button id="btn-support" class="btn-secondary" style="font-size: 14px; padding: 10px 20px; margin-top: 10px;">🛟 ПОДДЕРЖКА</button>
@@ -290,10 +295,12 @@
             </div>
 
             <div class="terminal-tabs">
-                <button class="tab-btn active" data-tab="unlocks">РАЗБЛОКИРОВКИ</button>
-                <button class="tab-btn" data-tab="skins">КАСТОМИЗАЦИЯ</button>
+                <button class="tab-btn active" data-tab="upgrades">УЛУЧШЕНИЯ</button>
+                <button class="tab-btn" data-tab="weapons">ОРУЖИЕ</button>
                 <button class="tab-btn" data-tab="implants">ИМПЛАНТЫ</button>
-				<button class="tab-btn" data-tab="purchase">ПОПОЛНИТЬ</button>
+                <button class="tab-btn" data-tab="skins">КОСТЮМЫ</button>
+                <button class="tab-btn" data-tab="bundles">АКЦИИ</button>
+                <button class="tab-btn" data-tab="purchase">ПОПОЛНИТЬ</button>
             </div>
             
             <div id="terminal-items" class="terminal-items-list">
@@ -302,6 +309,50 @@
 
             <div class="btn-row" style="margin-top: 20px;">
                 <button id="btn-close-terminal" class="btn-secondary">ЗАКРЫТЬ</button>
+            </div>
+        </div>
+    </div>
+	    <!-- ОКНО КАБИНЕТА -->
+    <div id="cabinet-modal" class="overlay hidden" style="z-index: 200;">
+        <div class="overlay-box" style="border-color: #44ddff; max-width: 800px; width: 95vw;">
+            <h1 style="color: #44ddff;">КАБИНЕТ</h1>
+            
+            <div class="terminal-tabs" style="margin-bottom: 20px;">
+                <button class="tab-btn active" id="cabinet-tab-skins" style="color: #44ddff;">👕 КОСТЮМЫ</button>
+                <button class="tab-btn" id="cabinet-tab-implants" style="color: #44ddff;">🧬 ИМПЛАНТЫ</button>
+            </div>
+
+            <!-- Вкладка Костюмов -->
+            <div id="cabinet-content-skins" style="display: flex; gap: 20px; align-items: flex-start;">
+                <div style="flex: 1; display: flex; flex-direction: column; align-items: center;">
+                    <canvas id="skin-preview" width="200" height="200" style="background: rgba(0,0,0,0.5); border: 2px solid #44ddff; border-radius: 10px;"></canvas>
+                    <p style="color: #aaa; margin-top: 10px; font-size: 14px;">Предпросмотр</p>
+                </div>
+                <div id="skins-list" style="flex: 2; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; max-height: 40vh; overflow-y: auto; padding-right: 10px;">
+                    <!-- Сюда будут рендериться скины -->
+                </div>
+            </div>
+
+            <!-- Вкладка Имплантов -->
+            <div id="cabinet-content-implants" class="hidden" style="display: flex; flex-direction: column; gap: 20px;">
+                <div style="text-align: center;">
+                    <h3 style="color: #00ff88; margin-bottom: 10px;">Слоты имплантов</h3>
+                    <div style="display: flex; gap: 15px; justify-content: center;">
+                        <div class="implant-slot" id="slot-0" data-slot="0">1</div>
+                        <div class="implant-slot" id="slot-1" data-slot="1">2</div>
+                        <div class="implant-slot" id="slot-2" data-slot="2">3</div>
+                    </div>
+                </div>
+                <div style="text-align: left;">
+                    <h3 style="color: #ffcc00; margin-bottom: 10px;">Сумка с имплантами</h3>
+                    <div id="implants-bag" style="display: flex; gap: 10px; flex-wrap: wrap; min-height: 80px; background: rgba(0,0,0,0.5); padding: 15px; border-radius: 10px; border: 1px dashed #555;">
+                        <!-- Сюда падают купленные импланты -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="btn-row" style="margin-top: 20px;">
+                <button id="btn-close-cabinet" class="btn-secondary">ЗАКРЫТЬ</button>
             </div>
         </div>
     </div>

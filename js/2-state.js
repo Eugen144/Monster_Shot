@@ -3,6 +3,7 @@ const game = {
     mouseDown: false, lastShotTime: 0, walls: [], enemies: [], bullets: [], enemyBullets: [], arrows: [],
     coins: [], healPacks: [], ammoPacks: [], minePacks: [], weaponPacks: [], mines: [], acidPools: [],
     particles: [], explosions: [], barrels: [], fires: [], player: null, screenShake: 0, camX: 0, camY: 0,
+	clawLasers: [],
     mapW: 0, mapH: 0, palette: LEVEL_PALETTES.default, upgrades: { damage: 0, maxhp: 0, speed: 0 },
     savedProgress: null, weaponHintSeen: false, tutorial: { active: false, step: 0, weaponHintActive: false, waitingFor: null, waitStartPos: null }, rewardAdUsedThisLevel: false, highScore: 0, sniperTrails: [],
     mode: 'campaign', wave: 1, ammoDropTimer: 0,
@@ -21,5 +22,11 @@ const game = {
     dailyChips: {
         lastLoginDate: null, // Дата последнего входа
         adsWatchedToday: 0   // Счётчик рекламы за сегодня
-    }
+    },
+	implantsBag: [], 
+    equippedImplants: [null, null, null], // 3 слота
+    implantCooldowns: { iron_boots: 0 }, // Таймеры перезарядки
+    shockwaves: [], // Для отрисовки эффекта волны
+	terminalUpgrades: {}, // Для многократных покупок (HP, урон и т.д.)
+	implantShieldHp: 0, // Текущая хп щита
 };

@@ -9,7 +9,7 @@ const MINE_RADIUS = 150; const MINE_DAMAGE = 120; const ENEMY_VISION = 300;
 const ACID_RADIUS = 50; const ACID_LIFETIME = 5.0; const ACID_DPS = 2; const TOTAL_LEVELS = 15;
 const BARREL_EXPLOSION_RADIUS = 100; const BARREL_FIRE_RADIUS = 75; const FIRE_DPS = 3; const FIRE_LIFETIME = 4.0;
 
-const SHOOT_FORCE_THRESHOLD = 0.55;
+const SHOOT_FORCE_THRESHOLD = 0.85;
 
 const SUPPORT_URL = 'https://vk.ru/club242108226'; 
 const AD_REWARD_COINS = 50;
@@ -98,19 +98,105 @@ const TUTORIAL_STEPS = [
 ];
 
 const TERMINAL_ITEMS = [
-    { id: 'startShotgun', category: 'unlocks', icon: '💥', name: 'Стартовый дробовик', desc: 'Начинать каждый забег с дробовиком', price: 20 },
-    { id: 'startMines', category: 'unlocks', icon: '💣', name: 'Стартовые мины', desc: 'Начинать с 3 минами в инвентаре', price: 30 },
-    { id: 'extraHp', category: 'unlocks', icon: '❤️', name: '+10 Макс. HP', desc: 'Увеличивает здоровье навсегда', price: 50 },
-    { id: 'extraSpeed', category: 'unlocks', icon: '⚡', name: '+5% Скорость', desc: 'Увеличивает скорость навсегда', price: 50 },
-    
+    // ОРУЖИЕ
+    { id: 'alien_rifle', category: 'weapons', icon: '🔫', name: 'Лазерная винтовка', desc: 'Красные лазеры, 25 урона, высокая скорострельность', price: 150 },
+    { id: 'startShotgun', category: 'weapons', icon: '💥', name: 'Стартовый дробовик', desc: 'Начинать каждый забег с дробовиком', price: 100 },
+
+    // КОСТЮМЫ
     { id: 'skinCyber', category: 'skins', icon: '🧑‍💻', name: 'Кибер-стрелок', desc: 'Яркий костюм. Бонус: +5% к скорости стрельбы', price: 80 },
     { id: 'skinShadow', category: 'skins', icon: '🥷', name: 'Тень', desc: 'Скрытный костюм. Бонус: враги видят вас в 2 раза хуже', price: 100 },
     { id: 'skinBear', category: 'skins', icon: '🐻', name: 'Медведь', desc: '-5% скорость, +50 HP, +10% скорость стрельбы', price: 150 },
     { id: 'skinAlien', category: 'skins', icon: '👽', name: 'Инопланетянин', desc: 'Щит на 200 HP, поглощает 50% урона. Отталкивает спринтеров', price: 250 },
-    { id: 'alien_rifle', category: 'unlocks', icon: '🔫', name: 'Лазерная винтовка', desc: 'Красные лазеры, 25 урона, высокая скорострельность', price: 150 },
-    { id: 'combo_alien', category: 'unlocks', icon: '🎁', name: 'Комбо: Пришелец', desc: 'Скин Инопланетянин + Лазерная винтовка', price: 300, originalPrice: 400, isCombo: true },
     
-    { id: 'implant1', category: 'implants', icon: '🧬', name: 'Регенерация', desc: 'В разработке', price: 999 },
-    { id: 'implant2', category: 'implants', icon: '🧬', name: 'Крит. урон', desc: 'В разработке', price: 999 }
-	
+    // ИМПЛАНТЫ (Добавляются в сумку Кабинета)
+	{ id: 'iron_boots', category: 'implants', icon: '🥾', name: 'Железные сапоги', desc: 'Оглушают врагов.', price: 100 },
+    { id: 'spiked_boots', category: 'implants', icon: '👢', name: 'Шипованные сапоги', desc: 'Наносят урон.', price: 150 },
+    { id: 'storm_boots', category: 'implants', icon: '🥾', name: 'Сапоги бури', desc: 'Урон и оглушение.', price: 250 },
+    { id: 'shield_1', category: 'implants', icon: '🛡️', name: 'Энергощит I', desc: '100 HP, поглощает 20% урона', price: 150 },
+    { id: 'shield_2', category: 'implants', icon: '🛡️', name: 'Энергощит II', desc: '200 HP, поглощает 50% урона', price: 300 },
+    { id: 'shield_3', category: 'implants', icon: '🛡️', name: 'Энергощит III', desc: '350 HP, поглощает 75% урона', price: 600 },
+	{ id: 'claw', category: 'implants', icon: '🦾', name: 'Боевая клешня', desc: 'Авто-атака лазером в радиусе 300. Максимум 2.', price: 200 },
+    
+    // АКЦИИ (Комбо)
+    { id: 'combo_alien', category: 'bundles', icon: '🎁', name: 'Комбо: Пришелец', desc: 'Скин Инопланетянин + Лазерная винтовка', price: 300, originalPrice: 400, isCombo: true },
+
+    // УЛУЧШЕНИЯ (Можно покупать много раз)
+    { id: 'extraHp', category: 'upgrades', icon: '❤️', name: '+10 Макс. HP', desc: 'Увеличивает здоровье навсегда', price: 50 },
+    { id: 'extraDamage', category: 'upgrades', icon: '🔫', name: '+2 Урон', desc: 'Увеличивает урон навсегда', price: 50 },
+    { id: 'extraSpeed', category: 'upgrades', icon: '⚡', name: '+5% Скорость', desc: 'Увеличивает скорость навсегда', price: 50 },
+    { id: 'startMines', category: 'upgrades', icon: '💣', name: '+1 Стартовая мина', desc: 'Начинать забег с +1 миной', price: 30 }
 ];
+const IMPLANTS_CONFIG = {
+    iron_boots: { 
+        id: 'iron_boots', name: 'Железные сапоги', icon: '🥾', 
+        desc: 'Оглушают врагов.', 
+        pushForce: 150, cooldown: 5000, radius: 250, 
+        stunDuration: 2000, damage: 0 // Только оглушение
+    },
+    spiked_boots: { 
+        id: 'spiked_boots', name: 'Шипованные сапоги', icon: '👢', 
+        desc: 'Наносят урон.', 
+        pushForce: 100, cooldown: 5000, radius: 250, 
+        stunDuration: 0, damage: 50 // Только урон
+    },
+    storm_boots: { 
+        id: 'storm_boots', name: 'Сапоги бури', icon: '🥾', 
+        desc: 'Урон и оглушение.', 
+        pushForce: 200, cooldown: 6000, radius: 300, 
+        stunDuration: 1500, damage: 30 // Урон + оглушение
+    },
+	shield_1: {
+		 id: 'shield_1',
+		 name: 'Энергощит I',
+		 icon: '🛡️',
+		 desc: '100 HP, 20% поглощение',
+		 type: 'shield',
+		 maxShieldHp: 100,
+		 absorbPct: 0.2,
+		 pushForce: 0,
+		 cooldown: 0,
+		 radius: 0,
+		 stunDuration: 0,
+		 damage: 0 
+	},
+    shield_2: { 
+		id: 'shield_2',
+		name: 'Энергощит II',
+		icon: '🛡️',
+		desc: '200 HP, 50% поглощение',
+		type: 'shield',
+		maxShieldHp: 200,
+		absorbPct: 0.5,
+		pushForce: 0,
+		cooldown: 0,
+		radius: 0,
+		stunDuration: 0,
+		damage: 0 
+	},
+    shield_3: {
+		id: 'shield_3',
+		name: 'Энергощит III',
+		icon: '🛡️',
+		desc: '350 HP, 75% поглощение',
+		type: 'shield',
+		maxShieldHp: 350,
+		absorbPct: 0.75,
+		pushForce: 0,
+		cooldown: 0,
+		radius: 0,
+		stunDuration: 0,
+		damage: 0 
+	},
+	claw: {
+    id: 'claw',
+    name: 'Боевая клешня',
+    icon: '🦾',
+    desc: 'Авто-атака лазером в радиусе 300',
+    type: 'claw',
+    range: 300,          // ← вот здесь меняешь радиус поиска врагов
+    damage: 15,          // ← урон одной пули
+    fireRate: 700,       // ← мс между выстрелами
+    bulletSpeed: 15,     // ← скорость пули
+    pushForce: 0, cooldown: 0, radius: 0, stunDuration: 0
+},
+};

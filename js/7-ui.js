@@ -50,7 +50,7 @@ function hideWaveModifierBanner() {
 
 function updatePauseStats() {
     if (!game.player) return;
-    const weapon = game.player.getWeapon(); const totalDamage = weapon.damage + game.upgrades.damage * 2;
+    const weapon = game.player.getWeapon(); const totalDamage = weapon.damage + game.upgrades.damage * 2 + (game.player.extraDamage || 0);
     document.getElementById('stat-damage').textContent = totalDamage;
     document.getElementById('stat-hp').textContent = game.player.maxHp;
     document.getElementById('stat-speed').textContent = game.player.speed.toFixed(1);
@@ -104,11 +104,30 @@ function startSurvival() {
 		game.alienShieldHp = 200; // Восстанавливаем щит
 
         if (game.terminalUnlocks['startShotgun'] && !game.player.ownedWeapons.includes('shotgun')) game.player.ownedWeapons.push('shotgun');
-        if (game.terminalUnlocks['startMines']) { for(let i=0; i<3; i++) game.player.inventory.push({ type: 'mine', name: 'Мина', icon: '💣' }); }
+               // Выдача стартовых мин (учитываем уровень прокачки)
+        const startMinesCount = game.terminalUpgrades['startMines'] || 0;
+        for (let i = 0; i < startMinesCount; i++) {
+            game.player.inventory.push({ type: 'mine', name: 'Мина', icon: '💣' });
+        }
+		
+		        // Восстанавливаем энергощит
+        const equippedShield = game.equippedImplants.find(id => id && IMPLANTS_CONFIG[id] && IMPLANTS_CONFIG[id].type === 'shield');
+        if (equippedShield) {
+            game.implantShieldHp = IMPLANTS_CONFIG[equippedShield].maxShieldHp;
+        } else {
+            game.implantShieldHp = 0;
+        }
         
         generateLevel(20); game.enemies = []; spawnSurvivalWave();
         
         hideAllOverlays();
+		 if (isMobile) {
+            document.getElementById('joystick-container').classList.remove('hidden');
+            document.getElementById('shoot-joystick-container').classList.remove('hidden');
+            document.getElementById('inv-btn-mobile').classList.remove('hidden');
+            document.getElementById('menu-btn-mobile').classList.remove('hidden');
+			document.getElementById('implant-btn-mobile').classList.remove('hidden');
+        }
         game.state = 'playing';
         game.keys = {}; game.mouseDown = false; joystickActive = false; joystickVector = {x:0, y:0};
         updateHUD(); playSound(700, 0.2, 'sine');
@@ -145,15 +164,37 @@ function launchGame(level, isNewGame = false) {
         game.player = new Player(120, 120); game.player.ammo = 15; game.player.ownedWeapons = weapons; 
 		game.alienShieldHp = 200;
         if (game.terminalUnlocks['startShotgun'] && !game.player.ownedWeapons.includes('shotgun')) game.player.ownedWeapons.push('shotgun');
-        if (game.terminalUnlocks['startMines']) { for(let i=0; i<3; i++) game.player.inventory.push({ type: 'mine', name: 'Мина', icon: '💣' }); }
+                // Выдача стартовых мин (учитываем уровень прокачки)
+        const startMinesCount = game.terminalUpgrades['startMines'] || 0;
+        for (let i = 0; i < startMinesCount; i++) {
+            game.player.inventory.push({ type: 'mine', name: 'Мина', icon: '💣' });
+        }
+		
+		        // Восстанавливаем энергощит
+        const equippedShield = game.equippedImplants.find(id => id && IMPLANTS_CONFIG[id] && IMPLANTS_CONFIG[id].type === 'shield');
+        if (equippedShield) {
+            game.implantShieldHp = IMPLANTS_CONFIG[equippedShield].maxShieldHp;
+        } else {
+            game.implantShieldHp = 0;
+        }
 
-        game.player.currentWeapon = (s.currentWeapon && weapons.includes(s.currentWeapon)) ? s.currentWeapon : 'pistol'; 
+         game.player.setWeapon((s.currentWeapon && weapons.includes(s.currentWeapon)) ? s.currentWeapon : 'pistol'); 
 		if (game.terminalUnlocks['alien_rifle'] && !game.player.ownedWeapons.includes('alien_rifle')) {
             game.player.ownedWeapons.push('alien_rifle');
         }
         game.player.applyUpgrades(true);
         
-        generateLevel(game.level); hideAllOverlays(); game.state = 'playing'; 
+        generateLevel(game.level); 
+		hideAllOverlays();
+		// Включаем мобильное управление только в игре
+        if (isMobile) {
+            document.getElementById('joystick-container').classList.remove('hidden');
+            document.getElementById('shoot-joystick-container').classList.remove('hidden');
+            document.getElementById('inv-btn-mobile').classList.remove('hidden');
+            document.getElementById('menu-btn-mobile').classList.remove('hidden');
+			document.getElementById('implant-btn-mobile').classList.remove('hidden');
+        }
+		game.state = 'playing'; 
         game.keys = {}; game.mouseDown = false; joystickActive = false; joystickVector = {x:0, y:0};
         
         updateHUD(); playSound(700, 0.2, 'sine');
@@ -193,18 +234,28 @@ function returnToMenu() {
     game.floatingTexts = []; game.waveModifier = null; game.waveModifierActive = false; game.goldrushPenalty = 0;
     game.combo = 0; game.comboTimer = 0; game.comboFlashTimer = 0;
     game.tutorial.active = false; game.tutorial.waitingFor = null; game.tutorial.waitStartPos = null;
-    hideAllOverlays(); document.getElementById('menu').classList.remove('hidden');
+    hideAllOverlays(); 
+	document.getElementById('menu').classList.remove('hidden');
 	
     stopAllMusic();
 	pauseWinMusic();
 	playMenuMusic(); 
 	
 	
-    menuEntities = []; menuPlayer = null;
+     menuEntities = []; menuPlayer = null;
 	// Возвращаем кнопки уровня на место
     document.getElementById('shop-open-btn').style.display = 'inline-block';
     document.getElementById('menu-from-level-btn').classList.remove('btn-primary');
     document.getElementById('menu-from-level-btn').classList.add('btn-secondary');
+    
+    // Прячем мобильные кнопки при выходе в меню
+    if (isMobile) {
+        document.getElementById('joystick-container').classList.add('hidden');
+        document.getElementById('shoot-joystick-container').classList.add('hidden');
+        document.getElementById('inv-btn-mobile').classList.add('hidden');
+        document.getElementById('menu-btn-mobile').classList.add('hidden');
+        document.getElementById('implant-btn-mobile').classList.add('hidden');
+    }
 }
 
 function levelComplete() {
@@ -267,6 +318,13 @@ function nextLevel() {
                 game.player.ownedWeapons.push('alien_rifle');
             }
 			game.alienShieldHp = 200; 
+			            // Восстанавливаем энергощит
+            const equippedShield = game.equippedImplants.find(id => id && IMPLANTS_CONFIG[id] && IMPLANTS_CONFIG[id].type === 'shield');
+            if (equippedShield) {
+                game.implantShieldHp = IMPLANTS_CONFIG[equippedShield].maxShieldHp;
+            } else {
+                game.implantShieldHp = 0;
+            }
             generateLevel(game.level); 
             hideAllOverlays(); game.state = 'playing'; game.keys = {}; game.mouseDown = false;
             
@@ -291,13 +349,26 @@ function restartLevel() {
         const savedCurrent = game.player && game.player.currentWeapon ? game.player.currentWeapon : 'pistol';
         game.tutorial.active = (game.level === 0); game.tutorial.step = 0; game.tutorial.weaponHintActive = false; game.tutorial.waitingFor = null; game.tutorial.waitStartPos = null;
         game.combo = 0; game.comboTimer = 0; game.comboMax = 0; game.comboFlashTimer = 0;
-        game.player = new Player(120, 120); game.player.ownedWeapons = savedWeapons; game.player.currentWeapon = savedCurrent;
+        game.player = new Player(120, 120); game.player.ownedWeapons = savedWeapons;  game.player.setWeapon(savedCurrent);
 		if (game.terminalUnlocks['alien_rifle'] && !game.player.ownedWeapons.includes('alien_rifle')) {
             game.player.ownedWeapons.push('alien_rifle');
         }
         game.player.ammo = 15; game.player.inventory = []; game.player.applyUpgrades(true);
 		game.alienShieldHp = 200;
+		        // Выдача стартовых мин (учитываем уровень прокачки)
+        const startMinesCount = game.terminalUpgrades['startMines'] || 0;
+        for (let i = 0; i < startMinesCount; i++) {
+            game.player.inventory.push({ type: 'mine', name: 'Мина', icon: '💣' });
+        }
         
+		// Восстанавливаем энергощит
+        const equippedShield = game.equippedImplants.find(id => id && IMPLANTS_CONFIG[id] && IMPLANTS_CONFIG[id].type === 'shield');
+        if (equippedShield) {
+            game.implantShieldHp = IMPLANTS_CONFIG[equippedShield].maxShieldHp;
+        } else {
+            game.implantShieldHp = 0;
+        }
+		
         generateLevel(game.level); hideAllOverlays(); game.state = 'playing'; 
         game.keys = {}; game.mouseDown = false; joystickActive = false; joystickVector = {x:0, y:0};
         
@@ -344,14 +415,45 @@ function gameOver() {
 }
 
 function victory() {
-	stopAllMusic();
-    playWinMusic();     
-    game.state = 'victory'; game.keys = {}; game.mouseDown = false; joystickActive = false; joystickVector = {x:0, y:0};
-    saveHighScore(game.score); game.level = 0; game.totalCoins = 0; game.upgrades = { damage: 0, maxhp: 0, speed: 0 }; saveProgress(true);
+    if (game.state === 'victory') return;
+
+    if (typeof battleTracks !== 'undefined') {
+        battleTracks.forEach(track => {
+            if (track) { track.pause(); track.currentTime = 0; }
+        });
+    }
+    if (typeof bgmBoss !== 'undefined' && bgmBoss) {
+        bgmBoss.pause(); bgmBoss.currentTime = 0;
+    }
+    if (typeof bgmSurvival !== 'undefined' && bgmSurvival) {
+        bgmSurvival.pause(); bgmSurvival.currentTime = 0;
+    }
+    if (typeof bgmMenu !== 'undefined' && bgmMenu) {
+        bgmMenu.pause(); bgmMenu.currentTime = 0;
+    }
+
+    playWinMusic();
+
+    game.state = 'victory';
+    game.keys = {};
+    game.mouseDown = false;
+    joystickActive = false;
+    joystickVector = {x:0, y:0};
+
+    saveHighScore(game.score);
+    game.level = 0;
+    game.totalCoins = 0;
+    game.upgrades = { damage: 0, maxhp: 0, speed: 0 };
+    saveProgress(true);
     game.chipsEarnedThisRun = {};
-	document.getElementById('victory-stats').innerHTML = `Монет собрано: ${game.totalCoins}<br>Очки: ${game.score}`;
+
+    document.getElementById('victory-stats').innerHTML =
+        `Монет собрано: ${game.totalCoins}<br>Очки: ${game.score}`;
     document.getElementById('victory').classList.remove('hidden');
-    playSound(1000, 0.3, 'sine'); setTimeout(() => playSound(1200, 0.3, 'sine'), 200); setTimeout(() => playSound(1500, 0.5, 'sine'), 400);
+
+    playSound(1000, 0.3, 'sine');
+    setTimeout(() => playSound(1200, 0.3, 'sine'), 200);
+    setTimeout(() => playSound(1500, 0.5, 'sine'), 400);
 }
 
 function openShop() {
@@ -398,7 +500,7 @@ function renderShop() {
         else {
             if (game.totalCoins < SHOTGUN_PRICE) el.classList.add('disabled');
             el.innerHTML = `<span class="shop-icon">💥</span><div class="shop-info"><span class="shop-name">Дробовик</span><span class="shop-desc">Мощное оружие для ближнего боя</span></div><span class="shop-price">💰 ${SHOTGUN_PRICE}</span>`;
-            if (game.totalCoins >= SHOTGUN_PRICE) { el.addEventListener('click', () => { game.totalCoins -= SHOTGUN_PRICE; game.player.ownedWeapons.push('shotgun'); game.player.currentWeapon = 'shotgun'; playSound(1000, 0.2, 'sine'); updateHUD(); saveProgress(true); renderShop(); }); }
+            if (game.totalCoins >= SHOTGUN_PRICE) { el.addEventListener('click', () => { game.totalCoins -= SHOTGUN_PRICE; game.player.ownedWeapons.push('shotgun'); game.player.ownedWeapons.push('shotgun'); game.player.setWeapon('shotgun'); playSound(1000, 0.2, 'sine'); updateHUD(); saveProgress(true); renderShop(); }); }
         }
         container.appendChild(el);
     }
@@ -410,7 +512,7 @@ function renderShop() {
         else {
             if (game.totalCoins < SNIPER_PRICE) el.classList.add('disabled');
             el.innerHTML = `<span class="shop-icon">🎯</span><div class="shop-info"><span class="shop-name">Снайперка</span><span class="shop-desc">Огромный урон, пробивает насквозь</span></div><span class="shop-price">💰 ${SNIPER_PRICE}</span>`;
-            if (game.totalCoins >= SNIPER_PRICE) { el.addEventListener('click', () => { game.totalCoins -= SNIPER_PRICE; game.player.ownedWeapons.push('sniper'); game.player.currentWeapon = 'sniper'; playSound(1000, 0.2, 'sine'); updateHUD(); saveProgress(true); renderShop(); }); }
+            if (game.totalCoins >= SNIPER_PRICE) { el.addEventListener('click', () => { game.totalCoins -= SNIPER_PRICE; game.player.ownedWeapons.push('sniper'); game.player.ownedWeapons.push('sniper'); game.player.setWeapon('sniper'); playSound(1000, 0.2, 'sine'); updateHUD(); saveProgress(true); renderShop(); }); }
         }
         container.appendChild(el);
     }
@@ -470,26 +572,26 @@ function renderInventory() {
         el.innerHTML = `<span class="item-icon">${item.icon || '📦'}</span><span class="item-name">${item.name} ${item.count ? '(x' + item.count + ')' : ''}</span><span class="item-action">${actionText}</span>`;
         
         el.addEventListener('click', () => {
-            if (item.type === 'weapon') {
-                if (game.player.currentWeapon !== item.weaponId && !game.weaponHintSeen) { 
-                    game.weaponHintSeen = true; game.tutorial.weaponHintActive = false; 
-                    document.getElementById('tutorial-hint').classList.add('hidden'); saveProgress(true); 
-                }
-                
-                // Смена оружия и сброс обоймы
-                game.player.currentWeapon = item.weaponId; 
-                game.player.applyUpgrades(false); 
-                game.player.ammo = Math.min(game.player.ammo, game.player.maxAmmo); 
-                game.player.magAmmo = WEAPONS[item.weaponId].magSize;
-                game.player.isReloading = false;
-                
-                playSound(650, 0.1, 'square'); renderInventory(); updateHUD(); saveProgress();
-            } else if (item.type === 'mine_stack') {
-                const firstMineIdx = game.player.inventory.findIndex(i => i.type === 'mine');
-                if (firstMineIdx !== -1) useInventoryItem(firstMineIdx);
-            }
-        });
-        container.appendChild(el);
+			if (item.type === 'weapon') {
+				game.player.setWeapon(item.weaponId);
+				playSound(500, 0.1, 'square');
+				updateHUD();
+				renderInventory();
+			} else if (item.type === 'mine_stack') {
+				const mineItem = game.player.inventory.find(i => i.type === 'mine');
+				if (mineItem && placeMine(mineItem)) {
+					if (game.player.inventory.filter(i => i.type === 'mine').length > 0) {
+						renderInventory();
+					} else {
+						closeInventory();
+					}
+				} else {
+					playSound(180, 0.15, 'square');
+				}
+			}
+		});
+        
+		container.appendChild(el);
     });
 }
 
@@ -672,13 +774,13 @@ function onTutorialSkipClick() {
 function endTutorial() { game.tutorial.active = false; game.tutorial.waitingFor = null; game.tutorial.waitStartPos = null; hideTutorialOverlay(); if (game.state === 'tutorial') game.state = 'playing'; }
 function hideTutorialOverlay() { if (_tutOverlay) _tutOverlay.classList.add('hidden'); if (_tutSpotlight) _tutSpotlight.style.display = 'none'; if (_tutPointer) _tutPointer.style.display = 'none'; if (_tutKeyHint) _tutKeyHint.classList.add('hidden'); }
 
-let currentTerminalTab = 'unlocks';
+let currentTerminalTab = 'upgrades';
 
 function openTerminal() {
     document.getElementById('terminal-modal').classList.remove('hidden');
     document.getElementById('menu').classList.add('hidden');
     document.getElementById('terminal-chips-value').textContent = game.chips;
-    switchTerminalTab('unlocks');
+    switchTerminalTab('upgrades');
     playSound(800, 0.1, 'sine');
 }
 
@@ -731,42 +833,56 @@ function renderTerminalItems() {
     
     const items = TERMINAL_ITEMS.filter(i => i.category === currentTerminalTab);
     
-    if (currentTerminalTab === 'implants') {
-        container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: #888; padding: 40px; font-size: 18px;">Импланты находятся в разработке...</div>';
-        return;
-    }
+    
 
     items.forEach(item => {
-                const isOwned = game.terminalUnlocks[item.id];
+        let isOwned = game.terminalUnlocks[item.id];
+        let currentLevel = 0;
+        
+        // Если это улучшение, оно не "куплено" навсегда, а имеет уровень
+        if (item.category === 'upgrades') {
+            isOwned = false;
+            currentLevel = game.terminalUpgrades[item.id] || 0;
+        }
+        
+		// Если это имплант, проверяем, есть ли он в сумке ИЛИ надет на игрока
+        if (item.category === 'implants') {
+			if (item.id === 'claw') {
+				const clawCount = game.implantsBag.filter(c => c === 'claw').length
+                        + game.equippedImplants.filter(c => c === 'claw').length;
+				isOwned = clawCount >= 2;
+			} else {
+				isOwned = game.implantsBag.includes(item.id) || game.equippedImplants.includes(item.id);
+			}
+		}
         const isEquipped = game.equippedSkin === item.id;
         const canAfford = game.chips >= item.price;
         
         const el = document.createElement('div');
         el.className = 'terminal-item' + (isOwned ? ' owned' : '');
         
-        let btnHtml = '';
-        if (!isOwned) {
+                let btnHtml = '';
+        if (item.category === 'upgrades') {
+            btnHtml = `<button class="buy-btn" ${!canAfford ? 'disabled' : ''} data-id="${item.id}">КУПИТЬ</button>`;
+        } else if (!isOwned) {
             btnHtml = `<button class="buy-btn" ${!canAfford ? 'disabled' : ''} data-id="${item.id}">КУПИТЬ</button>`;
         } else if (item.category === 'skins' && !isEquipped) {
             btnHtml = `<button class="equip-btn" data-id="${item.id}" style="background: #44ddff; color: #000; border: none; padding: 8px 15px; border-radius: 4px; font-weight: bold; cursor: pointer;">НАДЕТЬ</button>`;
         } else if (item.category === 'skins' && isEquipped) {
             btnHtml = `<button class="buy-btn" disabled style="background: #00ff88; color: #000;">НАДЕТО</button>`;
+        } else if (item.category === 'implants' && isOwned) {
+            btnHtml = `<button class="buy-btn" disabled style="background: #00ff88; color: #000;">КУПЛЕНО</button>`;
         }
 
-                // Генерируем HTML для цены (с учетом комбо)
         let priceHtml = '';
-        if (isOwned) {
-            priceHtml = item.category === 'skins' ? '' : 'КУПЛЕНО';
-        } else if (item.isCombo) {
-            // Если это комбо-товар, рисуем зачеркнутую цену и скидку
-            priceHtml = `
-                <span style="text-decoration: line-through; color: #888; font-size: 14px;">${item.originalPrice}</span> 
-                <span style="color: #00ff88; margin-left: 5px;">${item.price}</span>
-                <span class="discount-pulse" style="color: #ff0044; font-size: 12px; margin-left: 5px; display: block; font-weight: bold;">Скидка 25%</span>
-            `;
+        if (item.isCombo) {
+            priceHtml = `<span style="text-decoration: line-through; color: #888; font-size: 14px;">${item.originalPrice}</span> <span style="color: #00ff88; margin-left: 5px;">${item.price}</span>`;
         } else {
-            // Обычная цена
             priceHtml = `<img src="icon/chip.png" style="height: 16px; vertical-align: middle;" onerror="this.style.display='none'"> ${item.price}`;
+        }
+        
+        if (item.category === 'upgrades' && currentLevel > 0) {
+            priceHtml += ` <span style="color:#aaa; font-size:12px;">(Ур. ${currentLevel})</span>`;
         }
 
         // Собираем карточку товара
@@ -793,8 +909,23 @@ function renderTerminalItems() {
 }
 
 function buyTerminalItem(id, price) {
-    if (game.terminalUnlocks[id]) return;
+    const item = TERMINAL_ITEMS.find(i => i.id === id);
+    if (!item) return;
+
+    // Запрещаем покупать дважды только скины, оружие и импланты.
+    // Улучшения (upgrades) можно покупать бесконечно!
+    if (item.category !== 'upgrades' && game.terminalUnlocks[id]) return;
+    
     if (game.chips < price) return;
+	
+	if (id === 'claw') {
+        const clawCount = game.implantsBag.filter(c => c === 'claw').length
+                        + game.equippedImplants.filter(c => c === 'claw').length;
+        if (clawCount >= 2) {
+            alert('Максимум 2 боевые клешни!');
+            return;
+        }
+    }
     
     const btn = document.querySelector(`.buy-btn[data-id="${id}"]`);
     if (btn) { btn.disabled = true; btn.textContent = '...'; }
@@ -817,14 +948,17 @@ function buyTerminalItem(id, price) {
         .then(data => {
             if (data.result) {
                 game.chips -= price;
-                game.terminalUnlocks[id] = true;
+				if (item.category !== 'upgrades' && item.id !== 'claw') {
+					game.terminalUnlocks[id] = true;
+				}
+
                 
                 // ==========================================
                 // ВЫДАЧА ОРУЖИЯ И СКИНОВ
                 // ==========================================
-                    if (id === 'alien_rifle') {
-                    if (game.player && !game.player.ownedWeapons.includes('alien_rifle')) {
-                        game.player.ownedWeapons.push('alien_rifle');
+                if (id === 'alien_rifle' || id === 'startShotgun') {
+                    if (game.player && !game.player.ownedWeapons.includes(id)) {
+                        game.player.ownedWeapons.push(id);
                     }
                 } else if (id === 'combo_alien') {
                     game.terminalUnlocks['skinAlien'] = true;
@@ -832,7 +966,17 @@ function buyTerminalItem(id, price) {
                     if (game.player && !game.player.ownedWeapons.includes('alien_rifle')) {
                         game.player.ownedWeapons.push('alien_rifle');
                     }
-                    game.equippedSkin = 'skinAlien'; // Сразу надеваем скин
+                    game.equippedSkin = 'skinAlien'; 
+				} else if (item && item.category === 'implants') {
+					if (id === 'claw') {
+						game.implantsBag.push(id);           // клешней можно несколько
+					} else if (!game.implantsBag.includes(id)) {
+						game.implantsBag.push(id);
+					}
+                } else if (item && item.category === 'upgrades') {
+                    // Увеличиваем уровень улучшения
+                    game.terminalUpgrades[id] = (game.terminalUpgrades[id] || 0) + 1;
+                    if (game.player) game.player.applyUpgrades(false); // Применяем статы
                 }
 
                 saveGlobalChips();
@@ -840,6 +984,7 @@ function buyTerminalItem(id, price) {
                 document.getElementById('terminal-chips-value').textContent = game.chips;
                 renderTerminalItems();
                 playSound(1200, 0.2, 'sine');
+				
             } else {
                 alert('Ошибка сервера при покупке!');
                 renderTerminalItems();
@@ -852,14 +997,16 @@ function buyTerminalItem(id, price) {
     } else {
         // Локальный тест (без ВК)
         game.chips -= price;
-        game.terminalUnlocks[id] = true;
+        if (id !== 'claw') game.terminalUnlocks[id] = true;
 
         // ==========================================
         // ВЫДАЧА ОРУЖИЯ И СКИНОВ (для локального теста)
         // ==========================================
-        if (id === 'alien_rifle') {
-			if (game.player && !game.player.ownedWeapons.includes('alien_rifle')) {
-                game.player.ownedWeapons.push('alien_rifle');
+         const item = TERMINAL_ITEMS.find(i => i.id === id);
+        
+        if (id === 'alien_rifle' || id === 'startShotgun') {
+            if (game.player && !game.player.ownedWeapons.includes(id)) {
+                game.player.ownedWeapons.push(id);
             }
         } else if (id === 'combo_alien') {
             game.terminalUnlocks['skinAlien'] = true;
@@ -868,12 +1015,16 @@ function buyTerminalItem(id, price) {
                 game.player.ownedWeapons.push('alien_rifle');
             }
             game.equippedSkin = 'skinAlien';
+        } else if (item && item.category === 'implants') {
+			if (id === 'claw') {
+				game.implantsBag.push(id);           // клешней можно несколько
+			} else if (!game.implantsBag.includes(id)) {
+				game.implantsBag.push(id);
+			}
+        } else if (item && item.category === 'upgrades') {
+            game.terminalUpgrades[id] = (game.terminalUpgrades[id] || 0) + 1;
+            if (game.player) game.player.applyUpgrades(false);
         }
-
-        saveGlobalChips();
-        updateChipsUI();
-        renderTerminalItems();
-        playSound(1200, 0.2, 'sine');
     }
 }
 
@@ -933,4 +1084,158 @@ function buyChipsWithVotes(packId, chipAmount, priceInVotes) {
         console.error('Ошибка оплаты:', error);
         alert('Не удалось открыть окно оплаты. Попробуйте позже.');
     });
+}
+// ===== ЛОГИКА КАБИНЕТА =====
+function openCabinet() {
+    document.getElementById('menu').classList.add('hidden');
+    document.getElementById('cabinet-modal').classList.remove('hidden');
+    switchCabinetTab('skins');
+}
+
+function closeCabinet() {
+    document.getElementById('cabinet-modal').classList.add('hidden');
+    document.getElementById('menu').classList.remove('hidden');
+}
+
+function switchCabinetTab(tab) {
+    document.getElementById('cabinet-tab-skins').classList.toggle('active', tab === 'skins');
+    document.getElementById('cabinet-tab-implants').classList.toggle('active', tab === 'implants');
+    
+    if (tab === 'skins') {
+        document.getElementById('cabinet-content-skins').classList.remove('hidden');
+        document.getElementById('cabinet-content-implants').classList.add('hidden');
+        renderCabinetSkins();
+        drawSkinPreview();
+    } else {
+        document.getElementById('cabinet-content-skins').classList.add('hidden');
+        document.getElementById('cabinet-content-implants').classList.remove('hidden');
+        renderCabinetImplants();
+    }
+}
+
+function renderCabinetSkins() {
+    const list = document.getElementById('skins-list');
+    list.innerHTML = '';
+    
+    // 1. Базовый скин
+    const allSkins = [{ id: 'default', name: 'Новичок', icon: '🧑' }];
+    
+    // 2. Добавляем купленные скины
+    TERMINAL_ITEMS.forEach(item => {
+        if (item.category === 'skins' && game.terminalUnlocks[item.id]) {
+            allSkins.push({ id: item.id, name: item.name, icon: item.icon });
+        }
+    });
+
+    allSkins.forEach(skin => {
+        const el = document.createElement('div');
+        el.className = 'skin-item' + (game.equippedSkin === skin.id ? ' active' : '');
+        el.innerHTML = `<span class="skin-icon">${skin.icon}</span><span class="skin-name">${skin.name}</span>`;
+        
+                el.addEventListener('click', () => {
+            if (skin.id === 'skinAlien') {
+                const hasShield = game.equippedImplants.some(id => id && IMPLANTS_CONFIG[id] && IMPLANTS_CONFIG[id].type === 'shield');
+                if (hasShield) {
+                    alert('Сначала снимите энергощит из слотов имплантов!');
+                    return; 
+                }
+            }
+            game.equippedSkin = skin.id;
+            saveGlobalChips(); 
+            renderCabinetSkins(); 
+            drawSkinPreview(); 
+            playSound(600, 0.1, 'sine');
+        });
+        
+        list.appendChild(el);
+    });
+}
+function drawSkinPreview() {
+    const previewCanvas = document.getElementById('skin-preview');
+    if (!previewCanvas) return;
+    const pctx = previewCanvas.getContext('2d');
+    pctx.clearRect(0, 0, 200, 200);
+    
+    const oldPlayer = game.player;
+    const fakePlayer = new Player(100, 100); // Центр холста 200x200
+    fakePlayer.angle = -Math.PI / 2; // Смотрит вверх
+    
+    fakePlayer.draw(pctx); // Передаем контекст превью!
+    
+    game.player = oldPlayer;
+}
+
+function renderCabinetImplants() {
+    // 1. Рендер сумки
+    const bag = document.getElementById('implants-bag');
+    bag.innerHTML = '';
+    
+    if (game.implantsBag.length === 0) {
+        bag.innerHTML = '<span style="color:#666;">Сумка пуста</span>';
+    } else {
+        game.implantsBag.forEach(impId => {
+            const cfg = IMPLANTS_CONFIG[impId];
+			
+            const el = document.createElement('div');
+            el.className = 'skin-item';
+            el.innerHTML = `<span class="skin-icon">${cfg.icon}</span><span class="skin-name">${cfg.name}</span>`;
+            
+            // Клик по импланту в сумке = надеть в первый свободный слот
+            el.addEventListener('click', () => {
+				const cfg = IMPLANTS_CONFIG[impId];
+					if (cfg.type === 'shield' && game.equippedSkin === 'skinAlien') {
+						alert('Сначала снимите скин Инопланетянина! У него уже есть встроенный щит.');
+						return;
+					}
+					if (impId === 'claw') {
+						const equippedClaws = game.equippedImplants.filter(c => c === 'claw').length;
+						if (equippedClaws >= 2) {
+							alert('Максимум 2 клешни на игроке!');
+							return;
+						}
+					}
+				const emptySlot = game.equippedImplants.indexOf(null);
+					if (emptySlot !== -1) {
+						game.equippedImplants[emptySlot] = impId;
+						game.implantsBag.splice(game.implantsBag.indexOf(impId), 1);
+						 if (game.player) game.player.initClaws();
+						renderCabinetImplants();
+						playSound(800, 0.1, 'sine');
+					} else {
+						playSound(200, 0.1, 'square');
+					}
+				});
+            bag.appendChild(el);
+        });
+    }
+    
+    // 2. Рендер слотов
+    for (let i = 0; i < 3; i++) {
+        const slotEl = document.getElementById('slot-' + i);
+        const impId = game.equippedImplants[i];
+        
+        if (impId) {
+            const cfg = IMPLANTS_CONFIG[impId];
+            slotEl.className = 'implant-slot filled';
+            slotEl.innerHTML = cfg.icon;
+            
+            // Клик по слоту = снять имплант
+            slotEl.onclick = () => {
+                const cfg = IMPLANTS_CONFIG[impId];
+                if (cfg.type === 'shield') game.implantShieldHp = 0;
+                
+                game.equippedImplants[i] = null;
+                game.implantsBag.push(impId);
+                
+				if (game.player) game.player.initClaws();
+                saveGlobalChips(); // <--- ВАЖНО! Сохраняем
+                renderCabinetImplants();
+                playSound(400, 0.1, 'sine');
+            };
+        } else {
+            slotEl.className = 'implant-slot';
+            slotEl.innerHTML = (i + 1);
+            slotEl.onclick = null;
+        }
+    }
 }
